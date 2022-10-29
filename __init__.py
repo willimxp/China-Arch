@@ -13,6 +13,7 @@
 
 # test2 sda 
 # test2
+# this file should checkin to the 2210addon
 
 bl_info = {
     "name" : "PPtest",
