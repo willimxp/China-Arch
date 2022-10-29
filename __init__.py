@@ -11,11 +11,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-# test2 sda 
-# test2
-# this file should checkin to the 2210addon
-# update by new connection
-# github can upload without vpppn
 
 bl_info = {
     "name" : "PPtest",
