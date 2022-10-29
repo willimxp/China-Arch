@@ -15,6 +15,7 @@
 # test2
 # this file should checkin to the 2210addon
 # update by new connection
+# github can upload without vpppn
 
 bl_info = {
     "name" : "PPtest",
