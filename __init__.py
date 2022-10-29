@@ -14,6 +14,7 @@
 # test2 sda 
 # test2
 # this file should checkin to the 2210addon
+# update by new connection
 
 bl_info = {
     "name" : "PPtest",
