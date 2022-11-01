@@ -21,8 +21,8 @@ bl_info = {
     "blender" : (2, 80, 0),
     "version" : (0, 0, 1),
     "location" : "View3D > Properties > China Arch",
-    "tracker_url": "http://lucky3d.fr/auto-rig-pro/doc/bug_report.html",
-    "doc_url": "http://lucky3d.fr/auto-rig-pro/doc/",
+    "tracker_url": "https://github.com/willimxp/China-Arch/issues",
+    "doc_url": "https://github.com/willimxp/China-Arch",
     "category" : "Add Mesh"
 }
 
