@@ -1,3 +1,19 @@
+# Create by Jacques Lucke
+# From "Blender Development" addon of vscode
+# The templete that can auto load all class and module
+# https://devtalk.blender.org/t/batch-registering-multiple-classes-in-blender-2-8/3253/8?page=2
+#
+# This should automatically
+# import all modules in your addon
+# discover all classes, that need to be registered
+# sort the classes in case there are dependencies between them (e.g. when you use bpy.props.CollectionProperty
+# register all classes
+# call a register function in all modules that have one (except in the main __init__.py and in auto_load.py)
+# Limitations:
+# Can’t register keymaps, handlers, … You have to do that manually in a register function in any module. Maybe I’ll provide utilities to register these things later as well.
+# You can’t have classes you want to register in the __init__.py file. However I think this is actually good.
+#
+
 import os
 import bpy
 import sys
@@ -155,3 +171,4 @@ def toposort(deps_dict):
                 unsorted.append(value)
         deps_dict = {value : deps_dict[value] - sorted_values for value in unsorted}
     return sorted_list
+
