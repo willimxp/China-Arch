@@ -44,9 +44,3 @@ class CHINAARCH_PT_panel(bpy.types.Panel):
         
         # 分割线
         layout.separator()
-
-        
-
-        
-
-        
