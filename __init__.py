@@ -10,6 +10,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import bpy
 from . import pt_panel
 from . import op_chinarch
@@ -22,7 +23,7 @@ bl_info = {
     "version" : (0, 0, 1),
     "location" : "View3D > Properties > China Arch",
     "tracker_url": "https://github.com/willimxp/China-Arch/issues",
-    "doc_url": "https://github.com/willimxp/China-Arch",
+    "doc_url": "https://github.com/willimxp/China-Arch/wiki",
     "category" : "Add Mesh"
 }
 
