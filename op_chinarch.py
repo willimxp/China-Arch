@@ -11,18 +11,6 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
     bl_idname="chinarch.build"
     bl_label = "生成建筑外形"
    
-    # 自定义属性
-    # 面阔几间？
-    # room_X : bpy.props.IntProperty(default=4)
-    # # 进深几间？
-    # room_Y : bpy.props.IntProperty(default=3)
-    # # 间广（一般）
-    # room_space : bpy.props.FloatProperty(default=3) 
-    # # 台基多高？
-    # base_Z : bpy.props.FloatProperty(default=1) 
-    # # 台基多高？
-    # piller_Z : bpy.props.FloatProperty(default=4) 
-
     room_X = 4          # 面阔几间
     room_Y = 3          # 进深几间
     room_space = 3.0    # 间广几何
