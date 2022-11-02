@@ -9,25 +9,36 @@ from bpy_extras.object_utils import AddObjectHelper, object_data_add
 # 根据基本参数，构建建筑体
 class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
     bl_idname="chinarch.build"
-    bl_label = "buildit"
+    bl_label = "生成建筑外形"
    
     # 自定义属性
     # 面阔几间？
-    room_X : bpy.props.IntProperty(default=4)
-    # 进深几间？
-    room_Y : bpy.props.IntProperty(default=3)
-    # 间广（一般）
-    room_space : bpy.props.FloatProperty(default=3) 
-    # 台基多高？
-    base_Z : bpy.props.FloatProperty(default=1) 
-    # 台基多高？
-    piller_Z : bpy.props.FloatProperty(default=4) 
+    # room_X : bpy.props.IntProperty(default=4)
+    # # 进深几间？
+    # room_Y : bpy.props.IntProperty(default=3)
+    # # 间广（一般）
+    # room_space : bpy.props.FloatProperty(default=3) 
+    # # 台基多高？
+    # base_Z : bpy.props.FloatProperty(default=1) 
+    # # 台基多高？
+    # piller_Z : bpy.props.FloatProperty(default=4) 
+
+    room_X = 4          # 面阔几间
+    room_Y = 3          # 进深几间
+    room_space = 3.0    # 间广几何
+    base_Z = 0.5        # 台基多高
+    piller_Z = 4.0      # 柱子多高
 
     def execute(self, context): 
         # 删除全部
         print("PP: delete all")
         bpy.ops.object.select_all(action='SELECT')
         bpy.ops.object.delete(use_global=False)
+
+        # 从data中读取用户通过Panel输入的值
+        self.room_X = context.scene.room_x
+        self.room_Y = context.scene.room_y
+        self.base_Z = context.scene.base_z
 
         # 创建根对象（empty）
         print("PP: Build root")
