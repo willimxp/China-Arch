@@ -1,5 +1,6 @@
 # Create by willimxp
 # Blender插件，用以创建中式建筑
+# 定义插件面板
 
 import bpy
 
@@ -8,20 +9,12 @@ class CHINAARCH_PT_panel(bpy.types.Panel):
     bl_idname = "CHINAARCH_PT_panel"
     bl_label = "中式建筑" 
     bl_category = "China Arch"
-
     bl_region_type = 'UI'
     bl_space_type = 'VIEW_3D'    
     bl_context = "objectmode"
 
-    # 声明自定义property，与panel中的UI控件绑定，
-    # 储存在data中，用于插件计算
-    bpy.types.Scene.room_x = bpy.props.IntProperty(name="面阔间数", default=4)
-    bpy.types.Scene.room_y = bpy.props.IntProperty(name="进深间数", default=3)
-    bpy.types.Scene.base_z = bpy.props.FloatProperty(name="台基高度",default=1.0)
-
     def draw(self, context):
         layout = self.layout
-        obj = context.object
         
         # Label
         row = layout.row()
@@ -29,17 +22,24 @@ class CHINAARCH_PT_panel(bpy.types.Panel):
 
         # 输入整体尺寸，绑定data中的自定义property
         row = layout.row()
-        row.prop(context.scene, "room_x")
+        row.prop(context.scene.chinarch_data, "x_rooms")
         row = layout.row()
-        row.prop(context.scene, "room_y")
+        row.prop(context.scene.chinarch_data, "y_rooms")
         row = layout.row()
-        row.prop(context.scene, "base_z")
+        row.prop(context.scene.chinarch_data, "z_base")
 
 
-        # 按钮：添加建筑，传入data中的自定义property
+        # 按钮：添加建筑，绑定build operator
         row = layout.row()
         room = row.operator("chinarch.build",icon='HOME')
         
         # 分割线
         layout.separator()
-        layout.separator()
+        row = layout.row()
+        row.prop_search(
+                context.scene.chinarch_data,
+                "piller_source",
+                bpy.data,
+                "objects",
+                text="柱子"
+        )
