@@ -11,26 +11,21 @@ from . import chinarch_data
 class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
     bl_idname="chinarch.build"
     bl_label = "生成建筑外形"
-   
-    room_X = 4          # 面阔几间
-    room_Y = 3          # 进深几间
-    room_space = 3.0    # 间广几何
-    base_Z = 0.5        # 台基多高
-    piller_Z = 4.0      # 柱子多高
-    piller_source = ""  # 关联的柱子对象
-
-    dir_name = 'china_arch' # 在大纲中的目录名称
 
     def execute(self, context): 
         # 从data中读取用户通过Panel输入的值
-        dataset : chinarch_data.ChinarchData = context.scene.chinarch_data
-        self.room_X = dataset.x_rooms
-        self.room_Y = dataset.y_rooms
-        self.base_Z = dataset.z_base
-        self.piller_source = dataset.piller_source
+        dataset : chinarch_data.ChinarchData = \
+            context.scene.chinarch_data
+        
+        room_X = dataset.x_rooms   # 面阔几间
+        room_Y = dataset.y_rooms   # 进深几间
+        base_Z = dataset.z_base    # 台基多高
+        piller_source = dataset.piller_source # 关联的柱子对象
+        room_space = 3.0    # 间广几何
+        piller_Z = 4.0      # 柱子多高
 
         # 所有对象建立在china_arch目录下，以免误删用户自建的模型
-        coll_name = self.dir_name
+        coll_name = 'china_arch'  # 在大纲中的目录名称
         coll = bpy.data.collections.get(coll_name)
         if coll is None:    
             # 新建collection，不与其他用户自建的模型打架
@@ -63,54 +58,55 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
         # 二、创建地基
         print("PP: Build base")
         base_border = 2
-        base_width = self.room_X * self.room_space + base_border
-        base_length = self.room_Y * self.room_space + base_border
+        base_width = room_X * room_space + base_border
+        base_length = room_Y * room_space + base_border
         bpy.ops.mesh.primitive_cube_add(
             size=1.0, 
             calc_uvs=True, 
             enter_editmode=False, 
             align='WORLD', 
-            location=(0.0, 0.0, self.base_Z/-2), 
+            location=(0.0, 0.0, base_Z/-2), 
             rotation=(0.0, 0.0, 0.0), 
-            scale=(base_width, base_length, self.base_Z))
+            scale=(base_width, base_length, base_Z))
         context.object.name = "台基"
         context.object.parent = root_obj
 
         # 三、创建柱网
         print("PP: Build pillers")
         # 是否用户有自定义柱子？
-        print("PP: Piller_source=" + self.piller_source)
-        if self.piller_source == '':
+        print("PP: Piller_source=" + piller_source)
+        if piller_source == '':
             # 默认创建简单柱子
-            piller_mesh = bpy.ops.mesh.primitive_cylinder_add(
+            basic_piller_name = "基本立柱"
+            bpy.ops.mesh.primitive_cylinder_add(
                         vertices = 8, 
                         radius = 0.25, 
-                        depth = self.piller_Z ,
+                        depth = piller_Z ,
                         end_fill_type='NGON', 
                         calc_uvs=True, 
                         enter_editmode=False, 
                         align='WORLD', 
-                        location=(0, 0, self.piller_Z/2), 
+                        location=(0, 0, piller_Z/2), 
                         rotation=(0.0, 0.0, 0.0), 
                         scale=(1,1,1)
                     )
-            context.object.name = "立柱"
-            context.object.parent = root_obj
+            piller_mesh = context.object
+            piller_mesh.name = basic_piller_name
+            piller_mesh.parent = root_obj
         else:
             # 关联用户自定义柱子
-            piller_mesh = bpy.data.objects.get(self.piller_source)
-
+            piller_mesh = bpy.data.objects.get(piller_source)
+        
         # 按柱网坐标系分布柱子
-        offset_x = self.room_X * self.room_space / 2
-        offset_y = self.room_Y * self.room_space / 2
-
-        for x in range(self.room_X+1):
-            for y in range(self.room_Y+1):
+        offset_x = room_X * room_space / 2
+        offset_y = room_Y * room_space / 2
+        for x in range(room_X + 1):
+            for y in range(room_Y + 1):
                 # 复制链接
                 piller_copy = bpy.data.objects.new(
                     piller_mesh.name, piller_mesh.data)
-                piller_copy.location.x = x * self.room_space - offset_x
-                piller_copy.location.y = y * self.room_space - offset_y
+                piller_copy.location.x = x * room_space - offset_x
+                piller_copy.location.y = y * room_space - offset_y
                 piller_copy.location.z = piller_mesh.location.z
                 piller_copy.parent = root_obj            
                 bpy.data.collections[coll_name].objects.link(piller_copy)
@@ -122,8 +118,14 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                 piller_copy.select_set(True)
                 bpy.ops.object.make_links_data(type='MODIFIERS')         
         print("PP: finish")
+        
+        # 选择聚焦到根结点
         piller_mesh.select_set(False)
         root_obj.select_set(True)
+
+        # 删除自动生成的基本立柱范本（默认在（0，0，0）坐标）
+        if piller_mesh.name == basic_piller_name:
+            bpy.data.objects.remove(piller_mesh)
 
         return {'FINISHED'}
 
