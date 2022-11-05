@@ -41,11 +41,15 @@ def register():
         )
     bpy.utils.register_class(pt_panel.CHINAARCH_PT_panel)
     bpy.utils.register_class(op_chinarch.CHINARCH_OT_build)
+    bpy.utils.register_class(op_chinarch.CHINARCH_OT_piller_net_save)
+    bpy.utils.register_class(op_chinarch.CHINARCH_OT_piller_net_reset)
 
 def unregister():
     bpy.utils.unregister_class(chinarch_data.ChinarchData)
     bpy.utils.unregister_class(pt_panel.CHINAARCH_PT_panel)
     bpy.utils.unregister_class(op_chinarch.CHINARCH_OT_build)
+    bpy.utils.unregister_class(op_chinarch.CHINARCH_OT_piller_net_save)
+    bpy.utils.unregister_class(op_chinarch.CHINARCH_OT_piller_net_reset)
 
 # 仅用于在blender text editor中测试用途
 # 当做为blender addon插件载入时不会触发

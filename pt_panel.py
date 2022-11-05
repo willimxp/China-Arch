@@ -16,30 +16,56 @@ class CHINAARCH_PT_panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         
-        # Label
-        row = layout.row()
-        row.label(text="中式建筑参数化", icon='MOD_BUILD')
+        #box 一
+        box = layout.box()
+
+        # Label        
+        row = box.row()
+        row.label(text="一、基本参数")
 
         # 输入整体尺寸，绑定data中的自定义property
-        row = layout.row()
+        row = box.row()
         row.prop(context.scene.chinarch_data, "x_rooms")
-        row = layout.row()
+        row = box.row()
         row.prop(context.scene.chinarch_data, "y_rooms")
-        row = layout.row()
+        row = box.row()
         row.prop(context.scene.chinarch_data, "z_base")
 
 
-        # 按钮：添加建筑，绑定build operator
-        row = layout.row()
-        room = row.operator("chinarch.build",icon='HOME')
-        
-        # 分割线
-        layout.separator()
-        row = layout.row()
+        # box 二
+        box = layout.box()
+        # 标题：
+        row = box.row()
+        row.label(text="二、设置柱网")
+        # 选择柱子对象
+        row = box.row()
         row.prop_search(
                 context.scene.chinarch_data,
                 "piller_source",
                 bpy.data,
-                "objects",
-                text="柱子"
+                "objects"
         )
+        row = box.row()
+        row.prop_search(
+                context.scene.chinarch_data,
+                "piller_base_source",
+                bpy.data,
+                "objects"
+        )
+        row = box.row(align=True)
+        # 按钮：保存柱网
+        row.operator("chinarch.piller_net_save",icon='PARTICLES')
+        # 按钮：重设柱网
+        row.operator("chinarch.piller_net_reset",icon='MOD_PARTICLE_INSTANCE')
+
+        # box 三
+        box = layout.box()
+        # 标题：
+        row = box.row()
+        row.label(text="三、生成外形")
+        # 选择框：是否自动重绘
+        row = box.row()
+        row.prop(context.scene.chinarch_data, "is_auto_redraw")
+        # 按钮：生成建筑外形，绑定build operator
+        row = box.row()
+        row.operator("chinarch.build",icon='HOME')

@@ -6,8 +6,12 @@ import bpy
 
 # 修改数据时，自动调用重绘
 def update_func(self, context):
-    # 通过bl_id直接访问被注入的CHINARCH_OT_build
-    bpy.ops.chinarch.build()
+    dataset : ChinarchData = \
+            context.scene.chinarch_data
+
+    if dataset.is_auto_redraw:
+        # 重绘
+        bpy.ops.chinarch.build()
 
 # 数据结构
 class ChinarchData(bpy.types.PropertyGroup):
@@ -27,8 +31,20 @@ class ChinarchData(bpy.types.PropertyGroup):
             update=update_func
         )
     piller_source : bpy.props.StringProperty(
-            name="柱子对象",
+            name="柱子",
             default="", 
             update=update_func
+        )
+    piller_base_source : bpy.props.StringProperty(
+            name="柱础",
+            default="", 
+            update=update_func
+        )
+    piller_net : bpy.props.StringProperty(
+            name="保存的柱网列表"
+        )
+    is_auto_redraw : bpy.props.BoolProperty(
+            default=True,
+            name="是否自动重绘"
         )
 
