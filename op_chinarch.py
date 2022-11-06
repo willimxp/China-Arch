@@ -143,8 +143,6 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                     piller_base_copy.parent = root_obj 
                     bpy.data.collections[coll_name].objects.link(piller_base_copy)
                 
-
-                # ssdfsd
                 # 复制modifier
                 bpy.ops.object.select_all(action='DESELECT')
                 piller_base_obj.select_set(True)
