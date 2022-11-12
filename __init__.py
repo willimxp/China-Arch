@@ -32,24 +32,29 @@ bl_info = {
     "category" : "Add Mesh"
 }
 
-def register():
-    bpy.utils.register_class(chinarch_data.ChinarchData)
+classes = (
+    chinarch_data.ChinarchData,
+    pt_panel.CHINAARCH_PT_panel,
+    op_chinarch.CHINARCH_OT_build,
+    op_chinarch.CHINARCH_OT_piller_net_save,
+    op_chinarch.CHINARCH_OT_piller_net_reset,
+    )
+
+def register():    
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
     # 在scene中添加自定义数据结构
     bpy.types.Scene.chinarch_data = bpy.props.PointerProperty(
             type=chinarch_data.ChinarchData,
             name="中式建筑"
         )
-    bpy.utils.register_class(pt_panel.CHINAARCH_PT_panel)
-    bpy.utils.register_class(op_chinarch.CHINARCH_OT_build)
-    bpy.utils.register_class(op_chinarch.CHINARCH_OT_piller_net_save)
-    bpy.utils.register_class(op_chinarch.CHINARCH_OT_piller_net_reset)
 
 def unregister():
-    bpy.utils.unregister_class(chinarch_data.ChinarchData)
-    bpy.utils.unregister_class(pt_panel.CHINAARCH_PT_panel)
-    bpy.utils.unregister_class(op_chinarch.CHINARCH_OT_build)
-    bpy.utils.unregister_class(op_chinarch.CHINARCH_OT_piller_net_save)
-    bpy.utils.unregister_class(op_chinarch.CHINARCH_OT_piller_net_reset)
+    del bpy.types.Scene.chinarch_data
+
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
 
 # 仅用于在blender text editor中测试用途
 # 当做为blender addon插件载入时不会触发

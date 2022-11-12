@@ -112,43 +112,31 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                     print("PP: piller skiped " + piller_copy_name)
                     continue
 
-                # 复制柱子
-                piller_copy = bpy.data.objects.new(
-                    piller_copy_name, 
-                    piller_mesh.data)
-                piller_copy.location.x = x * room_space - offset_x
-                piller_copy.location.y = y * room_space - offset_y
-                piller_copy.location.z = piller_mesh.location.z
-                piller_copy.parent = root_obj            
-                bpy.data.collections[coll_name].objects.link(piller_copy)
+                # 复制柱子，仅instance，包含modifier
+                piller_copy = chinarchCopy(
+                    sourceObj = piller_mesh,
+                    name = piller_copy_name,
+                    locX = x * room_space - offset_x,
+                    locY = y * room_space - offset_y,
+                    locZ = piller_mesh.location.z,
+                    parentObj = root_obj,
+                    linkCollection = coll_name
+                )
 
-                # 复制modifier
-                # modifier在bpy.data中read-only，且不是所有的modifier都允许复制
-                # 用make_link_data的方法可以让blender自动来处理
-                bpy.ops.object.select_all(action='DESELECT')
-                piller_mesh.select_set(True)
-                bpy.context.view_layer.objects.active = piller_mesh
-                piller_copy.select_set(True)
-                bpy.ops.object.make_links_data(type='MODIFIERS') 
-
+                # 复制柱础 ## 柱础选择暂时在UI上已隐藏，此逻辑暂时无用
+                # 但仍未想好柱子和柱础是否要分开
                 piller_base_source = dataset.piller_base_source
                 if piller_base_source != '' :
                     piller_base_obj = bpy.data.objects.get(piller_base_source)
-                    piller_base_copy = bpy.data.objects.new(
-                        "柱础",
-                        piller_base_obj.data
+                    piller_base_copy = chinarchCopy(
+                        sourceObj = piller_base_obj,
+                        name = "柱础",
+                        locX = x * room_space - offset_x,
+                        locY = y * room_space - offset_y,
+                        locZ = piller_base_obj.location.z,
+                        parentObj = root_obj,
+                        linkCollection = coll_name
                     )
-                    piller_base_copy.location.x = x * room_space - offset_x
-                    piller_base_copy.location.y = y * room_space - offset_y
-                    piller_base_copy.parent = root_obj 
-                    bpy.data.collections[coll_name].objects.link(piller_base_copy)
-                
-                # 复制modifier
-                bpy.ops.object.select_all(action='DESELECT')
-                piller_base_obj.select_set(True)
-                bpy.context.view_layer.objects.active = piller_base_obj
-                piller_base_copy.select_set(True)
-                bpy.ops.object.make_links_data(type='MODIFIERS') 
 
         print("PP: finish")
         
@@ -161,6 +149,26 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
             bpy.data.objects.remove(piller_mesh)
 
         return {'FINISHED'}
+
+# 复制对象（仅复制instance，包括modifier）
+def chinarchCopy(sourceObj, name, locX, locY, locZ, parentObj, linkCollection):
+    # 复制基本信息
+    newObj = sourceObj.copy()
+    newObj.name = name
+    newObj.location.x = locX
+    newObj.location.y = locY
+    newObj.location.z = locZ
+    newObj.parent = parentObj            
+    bpy.data.collections[linkCollection].objects.link(newObj)
+
+    # 复制modifier
+    bpy.ops.object.select_all(action='DESELECT')
+    sourceObj.select_set(True)
+    bpy.context.view_layer.objects.active = sourceObj
+    newObj.select_set(True)
+    bpy.ops.object.make_links_data(type='MODIFIERS') 
+    
+    return newObj
 
 # 递归查询，并选择collection，似乎没有找到更好的办法
 # Recursivly transverse layer_collection for a particular name

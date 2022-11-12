@@ -17,12 +17,12 @@ def update_func(self, context):
 class ChinarchData(bpy.types.PropertyGroup):
     x_rooms : bpy.props.IntProperty(
             name="面阔间数",
-            default=3, min=1, max=9,
+            default=3, min=1, max=9,step=2,
             update=update_func
         )
     y_rooms : bpy.props.IntProperty(
             name="进深间数",
-            default=3, min=1, max=9,
+            default=3, min=1, max=5,
             update=update_func
         )
     z_base : bpy.props.FloatProperty(
