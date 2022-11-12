@@ -6,7 +6,7 @@ import bpy
 
 # 修改数据时，自动调用重绘
 def update_func(self, context):
-    dataset : ChinarchData = \
+    dataset : CHINARCH_scene_data = \
             context.scene.chinarch_data
 
     if dataset.is_auto_redraw:
@@ -14,22 +14,60 @@ def update_func(self, context):
         bpy.ops.chinarch.build()
 
 # 数据结构
-class ChinarchData(bpy.types.PropertyGroup):
+class CHINARCH_scene_data(bpy.types.PropertyGroup):
     x_rooms : bpy.props.IntProperty(
             name="面阔间数",
-            default=3, min=1, max=9,step=2,
+            default=3, min=1, max=11,step=2,
             update=update_func
         )
+    x_1 : bpy.props.FloatProperty(
+        name="明间宽度",
+        default=3, min=0, max=5,
+        update=update_func
+    )
+    x_2 : bpy.props.FloatProperty(
+        name="次间宽度",
+        default=3, min=0, max=5,
+        update=update_func
+    )
+    x_3 : bpy.props.FloatProperty(
+        name="梢间宽度",
+        default=3, min=0, max=5,
+        update=update_func
+    )
+    x_4 : bpy.props.FloatProperty(
+        name="尽间宽度",
+        default=3, min=0, max=5,
+        update=update_func
+    )
+
     y_rooms : bpy.props.IntProperty(
             name="进深间数",
             default=3, min=1, max=5,
             update=update_func
         )
+    y_1 : bpy.props.FloatProperty(
+        name="明间宽度",
+        default=3, min=0, max=5,
+        update=update_func
+    )
+    y_2 : bpy.props.FloatProperty(
+        name="次间宽度",
+        default=3, min=0, max=5,
+        update=update_func
+    )
+    y_3 : bpy.props.FloatProperty(
+        name="梢间宽度",
+        default=3, min=0, max=5,
+        update=update_func
+    )
+
     z_base : bpy.props.FloatProperty(
             name="台基高度",
             default=0.5, min=0.0, max=3.0,
             update=update_func
         )
+
     piller_source : bpy.props.StringProperty(
             name="柱子",
             default="", 
@@ -43,8 +81,8 @@ class ChinarchData(bpy.types.PropertyGroup):
     piller_net : bpy.props.StringProperty(
             name="保存的柱网列表"
         )
+
     is_auto_redraw : bpy.props.BoolProperty(
             default=True,
             name="是否自动重绘"
         )
-

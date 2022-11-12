@@ -16,9 +16,9 @@
 # 初始化原数据，注入扩展类
 
 import bpy
-from . import pt_panel
-from . import op_chinarch
-from . import chinarch_data
+from . import panel
+from . import operator
+from . import data
 
 bl_info = {
     "name" : "China Arch",
@@ -33,11 +33,15 @@ bl_info = {
 }
 
 classes = (
-    chinarch_data.ChinarchData,
-    pt_panel.CHINAARCH_PT_panel,
-    op_chinarch.CHINARCH_OT_build,
-    op_chinarch.CHINARCH_OT_piller_net_save,
-    op_chinarch.CHINARCH_OT_piller_net_reset,
+    data.CHINARCH_scene_data,
+
+    panel.CHINAARCH_PT_panel_base,
+    panel.CHINAARCH_PT_panel_property,
+
+    operator.CHINARCH_OT_build,
+    operator.CHINARCH_OT_piller_net_save,
+    operator.CHINARCH_OT_piller_net_reset,
+
     )
 
 def register():    
@@ -46,12 +50,20 @@ def register():
 
     # 在scene中添加自定义数据结构
     bpy.types.Scene.chinarch_data = bpy.props.PointerProperty(
-            type=chinarch_data.ChinarchData,
+            type=data.CHINARCH_scene_data,
             name="中式建筑"
         )
+    bpy.types.Object.chinarch_level = bpy.props.IntProperty(default=4)
+    bpy.types.Object.chinarch_obj = bpy.props.BoolProperty(default=True)
+    bpy.types.Object.chinarch_name = bpy.props.StringProperty()
+    bpy.types.Object.chinarch_desc = bpy.props.StringProperty()
 
 def unregister():
     del bpy.types.Scene.chinarch_data
+    del bpy.types.Object.chinarch_level
+    del bpy.types.Object.chinarch_obj
+    del bpy.types.Object.chinarch_name
+    del bpy.types.Object.chinarch_desc
 
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
