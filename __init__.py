@@ -41,10 +41,10 @@ classes = (
     operator.CHINARCH_OT_build,
     operator.CHINARCH_OT_piller_net_save,
     operator.CHINARCH_OT_piller_net_reset,
-
+    operator.CHINARCH_OT_level_scale
     )
 
-def register():    
+def register():   
     for cls in classes:
         bpy.utils.register_class(cls)
 
@@ -53,10 +53,27 @@ def register():
             type=data.CHINARCH_scene_data,
             name="中式建筑"
         )
-    bpy.types.Object.chinarch_level = bpy.props.IntProperty(default=4)
+
     bpy.types.Object.chinarch_obj = bpy.props.BoolProperty(default=True)
     bpy.types.Object.chinarch_name = bpy.props.StringProperty()
     bpy.types.Object.chinarch_desc = bpy.props.StringProperty()
+    bpy.types.Object.chinarch_level = bpy.props.IntProperty()
+    bpy.types.Object.chinarch_scale = bpy.props.EnumProperty(
+        #name="材份等级 ",
+        description="切换构件的材份等级",
+        items=[
+            ("1","一等材","一等材(9寸x6寸)"),
+            ("2","二等材","二等材(8.25寸x5.5寸)"),
+            ("3","三等材","三等材(7.5寸x5寸)"),
+            ("4","四等材","四等材(7.2寸x4.8寸)"),
+            ("5","五等材","五等材(6.6寸x4.4寸)"),
+            ("6","六等材","六等材(6寸x4寸)"),
+            ("7","七等材","七等材(5.25寸x3.5寸)"),
+            ("8","八等材","八等材(4.5寸x3寸)"),
+        ],
+        options={"ANIMATABLE"},
+        update=on_level_change
+    )
 
 def unregister():
     del bpy.types.Scene.chinarch_data
@@ -64,6 +81,7 @@ def unregister():
     del bpy.types.Object.chinarch_obj
     del bpy.types.Object.chinarch_name
     del bpy.types.Object.chinarch_desc
+    del bpy.types.Object.chinarch_scale
 
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
@@ -72,3 +90,18 @@ def unregister():
 # 当做为blender addon插件载入时不会触发
 if __name__ == "__main__":
     register()
+
+# 材份等级下拉框
+def on_level_change(self, context):
+    bpy.ops.chinarch.level_scale()
+    # print("Level change from " \
+    #     + str(context.object.chinarch_level) \
+    #     + " to " + context.object.chinarch_scale)
+
+# 材份等级下拉框
+def on_level_set(self, context):
+    print("Level set")
+
+# 材份等级下拉框
+def on_level_get(self, context):
+    print("Level get")

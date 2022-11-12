@@ -121,7 +121,7 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
             # 关联用户自定义柱子
             piller_mesh = bpy.data.objects.get(piller_source)
         
-        # 构造柱网X坐标序列
+        # 构造柱网X坐标序列，罗列了1，3，5，7，9，11间的情况，未能抽象成通用公式
         net_x=[]
         if x_rooms >=1:     # 明间
             offset = dataset.x_1 / 2
@@ -160,7 +160,7 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
             net_x.append(offset)
             net_x.insert(0, -offset) 
 
-        # 构造柱网Y坐标序列
+        # 构造柱网Y坐标序列，罗列了1-5间的情况，未能抽象成通用公式
         net_y=[]
         if y_rooms%2 == 1: # 奇数间
             if y_rooms >= 1:     # 明间
@@ -304,6 +304,38 @@ class CHINARCH_OT_piller_net_reset(bpy.types.Operator):
         
         # 调用重绘
         bpy.ops.chinarch.build()
+        return {'FINISHED'}
+
+# 缩放构件材等
+class CHINARCH_OT_level_scale(bpy.types.Operator):
+    bl_idname="chinarch.level_scale"
+    bl_label = "缩放构件材等"
+
+    def execute(self, context): 
+        # 根据《营造法式》定义的各材等尺寸
+        dict_level = {
+            '1':9,
+            '2':8.25,
+            '3':7.5,
+            '4':7.2,
+            '5':6.6,
+            '6':6,
+            '7':5.25,
+            '8':4.5
+        }
+        scale_before = dict_level[str(context.object.chinarch_level)]
+        scale_after = dict_level[context.object.chinarch_scale]
+        scale_rate = scale_after/scale_before
+        print("PP: 缩放材等 from " + str(context.object.chinarch_level) + "等（" \
+            + str(scale_before) + "寸）" \
+            + " to " + context.object.chinarch_scale + "等（" \
+            + str(scale_after) + "寸）" \
+            + str(scale_rate)
+        )
+
+        context.object.scale = (scale_rate,scale_rate,scale_rate)
+        
+        
         return {'FINISHED'}
 
 # 类模板

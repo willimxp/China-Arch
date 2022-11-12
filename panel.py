@@ -112,10 +112,10 @@ class CHINAARCH_PT_panel_property(bpy.types.Panel):
             # 尺寸
             row = box.column(align=True)
             row.label(text="尺寸:")
-            if "chinarch_level" in context.object:
+            if "chinarch_scale" in context.object:
                 row.prop(
                     data = context.object,
-                    property = "chinarch_level",
+                    property = "chinarch_scale",
                     text = "材份等级"
                 ) 
             row.prop(context.object,"dimensions",text="")
