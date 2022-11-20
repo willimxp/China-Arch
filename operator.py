@@ -6,6 +6,7 @@
 import bpy
 from bpy_extras.object_utils import AddObjectHelper
 from . import data
+import math
 
 # 根据基本参数，构建建筑体
 class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
@@ -25,7 +26,7 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
             if str.find(coll.name,coll_name) >= 0:
                 coll_found = True
                 coll_name = coll.name
-            break   # 找到第一个匹配的目录
+                break   # 找到第一个匹配的目录
 
         if not coll_found:    
             # 新建collection，不与其他用户自建的模型打架
@@ -47,17 +48,17 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
             layerColl = recurLayerCollection(layer_collection, coll_name)
             bpy.context.view_layer.active_layer_collection = layerColl
             
-        # 2、创建根对象（empty）
+        # 2、创建根对象（empty）===========================================================
         print("PP: Build root")
         bpy.ops.object.empty_add(type='PLAIN_AXES')
         root_obj = context.object
         root_obj.name = "中式建筑"
 
-        # 3、创建地基
+        # 3、创建地基===========================================================
         print("PP: Build base")
         x_rooms = dataset.x_rooms   # 面阔几间
         y_rooms = dataset.y_rooms   # 进深几间
-        base_border = 2.0   # 地基边框
+        base_border = 3.0   # 地基边框
 
         # 根据间数，计算台基宽度
         base_width = 0.0
@@ -82,23 +83,31 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
             base_length += dataset.y_2 * 2   # 次间
         if y_rooms >=5:
             base_length += dataset.y_3 * 2   # 梢间
-        # 边框
-        base_length += base_border
+        
+        base_length += base_border  # 边框
+        z_base = dataset.z_base     # 台基多高
 
-        z_base = dataset.z_base    # 台基多高
-        bpy.ops.mesh.primitive_cube_add(
-            size=1.0, 
-            calc_uvs=True, 
-            enter_editmode=False, 
-            align='WORLD', 
-            location=(0.0, 0.0, z_base/-2), 
-            rotation=(0.0, 0.0, 0.0), 
-            scale=(base_width, base_length, z_base))
-        context.object.name = "台基"
-        context.object.chinarch_obj = True
-        context.object.parent = root_obj
+        if dataset.base_source == '':
+            bpy.ops.mesh.primitive_cube_add(
+                size=1.0, 
+                calc_uvs=True, 
+                enter_editmode=False, 
+                align='WORLD', 
+                location=(0.0, 0.0, z_base/-2), 
+                rotation=(0.0, 0.0, 0.0), 
+                scale=(base_width, base_length, z_base))
+            context.object.name = "台基"
+            context.object.chinarch_obj = True
+            context.object.parent = root_obj
+        else:
+            baseObj = context.scene.objects.get(dataset.base_source)
+            baseObj.scale.x = base_width / baseObj.dimensions.x * baseObj.scale.x
+            baseObj.scale.y = base_length / baseObj.dimensions.y * baseObj.scale.y
+            # apply scale
+            baseObj.select_set(True)
+            bpy.ops.object.transform_apply(scale=True)
 
-        # 4、创建柱网
+        # 4、创建柱网===========================================================
         print("PP: Build pillers")
         basic_piller_name = "基本立柱"
         piller_Z = 4.0      # 柱子多高
@@ -231,14 +240,147 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                 #         parentObj = root_obj,
                 #         linkCollection = coll_name
                 #     )
-        
-        # 选择聚焦到根结点
-        piller_mesh.select_set(False)
-        root_obj.select_set(True)
+        #piller_mesh.select_set(False)
+
+        # 柱高，为后续阑额定位使用
+        pill_top = piller_mesh.dimensions.z
 
         # 删除自动生成的基本立柱范本（默认在（0，0，0）坐标）
         if piller_mesh.name == basic_piller_name:
             bpy.data.objects.remove(piller_mesh)
+        else: # 隐藏参考柱
+            piller_mesh.hide_set(True)          # 隐藏“眼睛”，暂时隐藏
+            piller_mesh.hide_viewport = True    # 隐藏“屏幕”，不含在viewplayer中
+            piller_mesh.hide_render = True      # 隐藏“相机”，不渲染
+
+        # 5、生成阑额，基于柱网坐标 ===========================================================
+        lane_length = 0    # 阑额长度
+        lane_height = 0.45     # 默认阑额高度
+        lane_thicken = 0.3     # 默认阑额厚度
+        lane_gap = 0.3         # 阑额间距（约为一柱宽）
+        
+        # 生成X轴向阑额
+        ny = 0
+        n = 0 # 标志重新开始循环
+        x_pre = 0       # 上一个柱点
+        x_next = 0      # 下一个柱点
+        x_now = 0       # 阑额中点
+        for y in net_y :
+            # 只生成外圈阑额，内部阑额需要根据地盘确定
+            if ny not in [0,1,len(net_y)-2,len(net_y)-1]:  
+                pass
+            else : 
+                for x in net_x :
+                    if n == 0 :
+                        x_pre = x
+                        n += 1
+                    else:
+                        x_next = x
+                        
+                        # 创建阑额
+                        lane_length = x_next - x_pre - lane_gap
+                        x_now = x_next - (x_next - x_pre) / 2
+                        x_zcord = pill_top - lane_height / 2
+                        
+                        if dataset.lane_source == '' :
+                            bpy.ops.mesh.primitive_cube_add(
+                                size=1.0, 
+                                calc_uvs=True, 
+                                enter_editmode=False, 
+                                align='WORLD', 
+                                location=(x_now, net_y[ny], x_zcord), 
+                                rotation=(0.0, 0.0, 0.0), 
+                                scale=(lane_length, lane_thicken, lane_height))
+                            context.object.name = "阑额"
+                            context.object.chinarch_obj = True
+                            context.object.parent = root_obj
+                        else :
+                            lane_obj = bpy.data.objects.get(dataset.lane_source)
+                            lane_copy = chinarchCopy(
+                                sourceObj = lane_obj,
+                                name = "阑额",
+                                locX = x_now,
+                                locY = net_y[ny],
+                                locZ = x_zcord,
+                                parentObj = root_obj,
+                                linkCollection = coll_name
+                                )
+                            lane_copy.scale.x = lane_length / lane_copy.dimensions.x
+                        # 向上传递旧坐标
+                        x_pre = x
+                    # end if x_pre == 0
+                # end for x
+            ny += 1
+            n = 0
+            # end if ny in []
+        # end for y
+
+        # 生成Y轴向阑额
+        nx = 0
+        n = 0 # 标志重新开始循环
+        y_pre = 0       # 上一个柱点
+        y_next = 0      # 下一个柱点
+        y_now = 0       # 阑额中点
+        for x in net_x :
+            # 只生成外圈阑额，内部阑额需要根据地盘确定
+            if nx not in [0,1,len(net_x)-2,len(net_x)-1]:  
+                pass
+            else : 
+                for y in net_y :
+                    if n == 0:
+                        y_pre = y
+                        n += 1
+                    else:
+                        y_next = y
+                        
+                        # 创建阑额
+                        lane_length = y_next - y_pre - lane_gap
+                        print("PP: x=" + str(x) + " y=" + str(y) + " length=" + str(lane_length))
+                        y_now = y_next - (y_next - y_pre) / 2
+                        y_zcord = pill_top - lane_height / 2
+                        
+                        if dataset.lane_source == '' :
+                            bpy.ops.mesh.primitive_cube_add(
+                                size=1.0, 
+                                calc_uvs=True, 
+                                enter_editmode=False, 
+                                align='WORLD', 
+                                location=(net_x[nx],y_now, y_zcord), 
+                                rotation=(0.0, 0.0, 0.0), 
+                                scale=(lane_thicken, lane_length, lane_height))
+                            context.object.name = "阑额"
+                            context.object.chinarch_obj = True
+                            context.object.parent = root_obj
+                        else :
+                            lane_obj = bpy.data.objects.get(dataset.lane_source)
+                            lane_copy = chinarchCopy(
+                                sourceObj = lane_obj,
+                                name = "阑额",
+                                locX = net_x[nx],
+                                locY = y_now,
+                                locZ = y_zcord,
+                                parentObj = root_obj,
+                                linkCollection = coll_name
+                                )
+                            lane_copy.scale.x = lane_length / lane_copy.dimensions.x
+                            lane_copy.rotation_euler.z = math.radians(90)
+                        # 向上传递旧坐标
+                        y_pre = y
+                    # end if x_pre == 0
+                # end for x
+            nx += 1
+            n = 0
+            # end if ny in []
+        # end for y
+        
+        # 隐藏参考阑额
+        if dataset.lane_source != '' :
+            lane_obj.hide_set(True)          # 隐藏“眼睛”，暂时隐藏
+            lane_obj.hide_viewport = True    # 隐藏“屏幕”，不含在viewplayer中
+            lane_obj.hide_render = True      # 隐藏“相机”，不渲染
+
+        # 选择聚焦到根结点
+        root_obj.select_set(True)
 
         return {'FINISHED'}
 

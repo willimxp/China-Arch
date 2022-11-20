@@ -17,60 +17,60 @@ class CHINAARCH_PT_panel_base(bpy.types.Panel):
     def draw(self, context):
         dataset : data.CHINARCH_scene_data = context.scene.chinarch_data
         layout = self.layout
-        row = layout.row()
-        row.label(text="地盘设置")
+        # row = layout.row()
+        # row.label(text="地盘设置")
 
         #box 一
         box = layout.box()   
         # 输入整体尺寸，绑定data中的自定义property
         row = box.column(align=True)
-        row.prop(dataset, "x_rooms")
-        row.prop(dataset, "x_1")
+        row.prop(dataset, "x_rooms")    # 面阔间数
+        row.prop(dataset, "x_1")        # 明间宽度
         if dataset.x_rooms >= 3:
-            row.prop(dataset, "x_2")
+            row.prop(dataset, "x_2")    # 次间宽度
         if dataset.x_rooms >= 5:
-            row.prop(dataset, "x_3")
+            row.prop(dataset, "x_3")    # 梢间宽度
         if dataset.x_rooms >= 7:
-            row.prop(dataset, "x_4")
+            row.prop(dataset, "x_4")    # 尽间宽度
 
         row = box.column(align=True)
-        row.prop(context.scene.chinarch_data, "y_rooms")
-        row.prop(dataset, "y_1")
+        row.prop(context.scene.chinarch_data, "y_rooms")    # 进深间数
+        row.prop(dataset, "y_1")        # 明间深度
         if dataset.y_rooms >= 3:
-            row.prop(dataset, "y_2")
+            row.prop(dataset, "y_2")    # 次间深度
         if dataset.y_rooms >= 5:
-            row.prop(dataset, "y_3")
+            row.prop(dataset, "y_3")    # 梢间深度
 
-        #row = box.row()
-        #row.prop(context.scene.chinarch_data, "z_base")
+        # 地基设置：高度，外部对象
+        box = layout.box()  
+        row = box.row()
+        row.prop_search(dataset, "base_source",bpy.data,"objects")
+        row = box.row()
+        row.prop(dataset, "z_base")
 
         # 选择柱子对象
+        box = layout.box() 
         row = box.row()
-        row.prop_search(
-            context.scene.chinarch_data,
-            "piller_source",
-            bpy.data,
-            "objects"
-        )
+        row.prop_search(dataset,"piller_source",bpy.data,"objects")
         # 选择柱础对象 ## 暂时隐藏，还没想好到底柱子和柱础是否要分开
         # row = box.row()
-        # row.prop_search(
-        #         context.scene.chinarch_data,
-        #         "piller_base_source",
-        #         bpy.data,
-        #         "objects"
-        # )
+        # row.prop_search(dataset,"piller_base_source",bpy.data,"objects")
         row = box.row(align=True)
         # 按钮：保存柱网
         row.operator("chinarch.piller_net_save",icon='PARTICLES')
         # 按钮：重设柱网
         row.operator("chinarch.piller_net_reset",icon='MOD_PARTICLE_INSTANCE')
 
-        # 选择框：是否自动重绘
+        # 选择阑额对象
+        box = layout.box() 
         row = box.row()
+        row.prop_search(dataset,"lane_source",bpy.data,"objects")
+
+        # 选择框：是否自动重绘
+        row = layout.row()
         row.prop(context.scene.chinarch_data, "is_auto_redraw")
         # 按钮：生成建筑外形，绑定build operator
-        row = box.row()
+        row = layout.row()
         row.operator("chinarch.build",icon='HOME')
 
        

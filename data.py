@@ -47,27 +47,35 @@ class CHINARCH_scene_data(bpy.types.PropertyGroup):
             update=update_func
         )
     y_1 : bpy.props.FloatProperty(
-        name="明间宽度",
+        name="明间深度",
         default=3, min=0, max=5,
         update=update_func
     )
     y_2 : bpy.props.FloatProperty(
-        name="次间宽度",
+        name="次间深度",
         default=3, min=0, max=5,
         update=update_func
     )
     y_3 : bpy.props.FloatProperty(
-        name="梢间宽度",
+        name="梢间深度",
         default=3, min=0, max=5,
         update=update_func
     )
-
     z_base : bpy.props.FloatProperty(
             name="台基高度",
-            default=0.5, min=0.0, max=3.0,
+            default=1, min=0.0, max=3.0,
             update=update_func
         )
-
+    base_source : bpy.props.StringProperty(
+            name="台基",
+            default="",
+            update=update_func
+        )
+    lane_source : bpy.props.StringProperty(
+            name="阑额",
+            default="", 
+            update=update_func
+        )
     piller_source : bpy.props.StringProperty(
             name="柱子",
             default="", 
