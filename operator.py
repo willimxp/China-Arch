@@ -20,8 +20,14 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
         # 1、创建china_arch collection集合
         # 所有对象建立在china_arch目录下，以免误删用户自建的模型
         coll_name = 'china_arch'  # 在大纲中的目录名称
-        coll = bpy.data.collections.get(coll_name)
-        if coll is None:    
+        coll_found = False
+        for coll in context.scene.collection.children:
+            if str.find(coll.name,coll_name) >= 0:
+                coll_found = True
+                coll_name = coll.name
+            break   # 找到第一个匹配的目录
+
+        if not coll_found:    
             # 新建collection，不与其他用户自建的模型打架
             print("PP: Add new collection " + coll_name)
             coll = bpy.data.collections.new(coll_name)
@@ -238,14 +244,20 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
 
 # 复制对象（仅复制instance，包括modifier）
 def chinarchCopy(sourceObj, name, locX, locY, locZ, parentObj, linkCollection):
+    # 强制原对象不能隐藏
+    IsHideViewport = sourceObj.hide_viewport
+    sourceObj.hide_viewport = False
+    IsHideRender = sourceObj.hide_render
+    sourceObj.hide_render = False
+    
     # 复制基本信息
     newObj = sourceObj.copy()
     newObj.name = name
     newObj.location.x = locX
     newObj.location.y = locY
     newObj.location.z = locZ
-    newObj.parent = parentObj            
-    bpy.data.collections[linkCollection].objects.link(newObj)
+    newObj.parent = parentObj
+    bpy.context.collection.objects.link(newObj) 
 
     # 复制modifier
     bpy.ops.object.select_all(action='DESELECT')
@@ -253,6 +265,10 @@ def chinarchCopy(sourceObj, name, locX, locY, locZ, parentObj, linkCollection):
     bpy.context.view_layer.objects.active = sourceObj
     newObj.select_set(True)
     bpy.ops.object.make_links_data(type='MODIFIERS') 
+
+    # 恢复原对象的隐藏属性
+    sourceObj.hide_viewport = IsHideViewport
+    sourceObj.hide_render = IsHideRender
     
     return newObj
 
