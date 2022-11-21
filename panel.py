@@ -44,9 +44,11 @@ class CHINAARCH_PT_panel_base(bpy.types.Panel):
         # 地基设置：高度，外部对象
         box = layout.box()  
         row = box.row()
-        row.prop_search(dataset, "base_source",bpy.data,"objects")
+        row.prop(dataset, "z_base")     # 台基高度
         row = box.row()
-        row.prop(dataset, "z_base")
+        row.prop_search(dataset, "base_source",bpy.data,"objects")  # 台基对象
+        row = box.row()
+        row.prop_search(dataset, "step_source",bpy.data,"objects")  # 踏道对象
 
         # 选择柱子对象
         box = layout.box() 

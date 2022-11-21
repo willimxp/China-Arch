@@ -71,6 +71,11 @@ class CHINARCH_scene_data(bpy.types.PropertyGroup):
             default="",
             update=update_func
         )
+    step_source : bpy.props.StringProperty(
+            name="踏道",
+            default="",
+            update=update_func
+        )
     lane_source : bpy.props.StringProperty(
             name="阑额",
             default="", 

@@ -87,6 +87,8 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
         base_length += base_border  # 边框
         z_base = dataset.z_base     # 台基多高
 
+        # 默认矩形台基
+        baseObj = bpy.types.Object
         if dataset.base_source == '':
             bpy.ops.mesh.primitive_cube_add(
                 size=1.0, 
@@ -99,6 +101,8 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
             context.object.name = "台基"
             context.object.chinarch_obj = True
             context.object.parent = root_obj
+            baseObj = context.object
+        # 关联外部台基资产
         else:
             baseObj = context.scene.objects.get(dataset.base_source)
             baseObj.scale.x = base_width / baseObj.dimensions.x * baseObj.scale.x
@@ -106,6 +110,14 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
             # apply scale
             baseObj.select_set(True)
             bpy.ops.object.transform_apply(scale=True)
+
+        # 关联外部踏道资产
+        if dataset.step_source != '' :
+            stepObj:bpy.types.Object = context.scene.objects.get(dataset.step_source)
+            stepObj.location.x = 0
+            stepObj.location.y = -(base_length / 2 + stepObj.dimensions.y / 2)
+            stepObj.location.z = baseObj.location.z - stepObj.dimensions.z / 2
+            stepObj.dimensions.z = baseObj.dimensions.z
 
         # 4、创建柱网===========================================================
         print("PP: Build pillers")
