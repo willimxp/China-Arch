@@ -8,6 +8,58 @@ from bpy_extras.object_utils import AddObjectHelper
 from . import data
 import math
 
+# 隐藏对象，包括viewport和render渲染
+def hideObj(object:bpy.types.Object) : 
+    object.hide_set(True)          # 隐藏“眼睛”，暂时隐藏
+    object.hide_viewport = True    # 隐藏“屏幕”，不含在viewport中
+    object.hide_render = True      # 隐藏“相机”，不渲染
+
+# 复制对象（仅复制instance，包括modifier）
+def chinarchCopy(sourceObj, name, locX, locY, locZ, parentObj, linkCollection):
+    # 强制原对象不能隐藏
+    IsHideViewport = sourceObj.hide_viewport
+    sourceObj.hide_viewport = False
+    IsHideRender = sourceObj.hide_render
+    sourceObj.hide_render = False
+    
+    # 复制基本信息
+    newObj = sourceObj.copy()
+    newObj.name = name
+    newObj.location.x = locX
+    newObj.location.y = locY
+    newObj.location.z = locZ
+    newObj.parent = parentObj
+    bpy.context.collection.objects.link(newObj) 
+
+    # 复制modifier
+    bpy.ops.object.select_all(action='DESELECT')
+    sourceObj.select_set(True)
+    bpy.context.view_layer.objects.active = sourceObj
+    newObj.select_set(True)
+    bpy.ops.object.make_links_data(type='MODIFIERS') 
+
+    # 恢复原对象的隐藏属性
+    sourceObj.hide_viewport = IsHideViewport
+    sourceObj.hide_render = IsHideRender
+    
+    return newObj
+
+# 递归查询，并选择collection，似乎没有找到更好的办法
+# Recursivly transverse layer_collection for a particular name
+# https://blender.stackexchange.com/questions/127403/change-active-collection
+def recurLayerCollection(layerColl, collName):
+    found = None
+    if (layerColl.name == collName):
+        return layerColl
+    for layer in layerColl.children:
+        found = recurLayerCollection(layer, collName)
+        if found:
+            return found
+
+# 刷新viewport，避免长时间卡死，并可见到建造过程
+def redrawViewport():
+    bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
+
 # 根据基本参数，构建建筑体
 class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
     bl_idname="chinarch.build"
@@ -47,7 +99,9 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
             layer_collection = bpy.context.view_layer.layer_collection
             layerColl = recurLayerCollection(layer_collection, coll_name)
             bpy.context.view_layer.active_layer_collection = layerColl
-            
+        
+        redrawViewport()
+
         # 2、创建根对象（empty）===========================================================
         print("PP: Build root")
         bpy.ops.object.empty_add(type='PLAIN_AXES')
@@ -118,6 +172,8 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
             stepObj.location.y = -(base_length / 2 + stepObj.dimensions.y / 2)
             stepObj.location.z = baseObj.location.z - stepObj.dimensions.z / 2
             stepObj.dimensions.z = baseObj.dimensions.z
+        
+        redrawViewport()
 
         # 4、创建柱网===========================================================
         print("PP: Build pillers")
@@ -237,7 +293,7 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                     parentObj = root_obj,
                     linkCollection = coll_name
                 )
-
+                
                 # # 复制柱础 ## 柱础选择暂时在UI上已隐藏，此逻辑暂时无用
                 # # 但仍未想好柱子和柱础是否要分开
                 # piller_base_source = dataset.piller_base_source
@@ -252,6 +308,9 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                 #         parentObj = root_obj,
                 #         linkCollection = coll_name
                 #     )
+
+                redrawViewport()
+
         #piller_mesh.select_set(False)
 
         # 柱高，为后续阑额定位使用
@@ -320,6 +379,8 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                             lane_copy.scale.x = lane_length / lane_copy.dimensions.x
                         # 向上传递旧坐标
                         x_pre = x
+
+                        redrawViewport()
                     # end if x_pre == 0
                 # end for x
             ny += 1
@@ -347,7 +408,7 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                         
                         # 创建阑额
                         lane_length = y_next - y_pre - lane_gap
-                        print("PP: x=" + str(x) + " y=" + str(y) + " length=" + str(lane_length))
+                        # print("PP: x=" + str(x) + " y=" + str(y) + " length=" + str(lane_length))
                         y_now = y_next - (y_next - y_pre) / 2
                         y_zcord = pill_top - lane_height / 2
                         
@@ -378,6 +439,8 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                             lane_copy.rotation_euler.z = math.radians(90)
                         # 向上传递旧坐标
                         y_pre = y
+
+                        redrawViewport()
                     # end if x_pre == 0
                 # end for x
             nx += 1
@@ -387,56 +450,152 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
         
         # 隐藏参考阑额
         if dataset.lane_source != '' :
-            lane_obj.hide_set(True)          # 隐藏“眼睛”，暂时隐藏
-            lane_obj.hide_viewport = True    # 隐藏“屏幕”，不含在viewplayer中
-            lane_obj.hide_render = True      # 隐藏“相机”，不渲染
+            hideObj(lane_obj)
+
+        # 6、布置铺作======================================================
+        if dataset.puzuo_corner_source != '':
+            # 转角铺作
+            puzuoCornerObj:bpy.types.Object = context.scene.objects.get(dataset.puzuo_corner_source)
+            # 四个角柱坐标
+            puzuoCornerArray = [
+                [net_x[-1], net_y[0]],
+                [net_x[-1], net_y[-1]],
+                [net_x[0], net_y[-1]],
+                [net_x[0], net_y[0]]
+            ]
+            for n in range(len(puzuoCornerArray)) :
+                puzuoCornerCopy:bpy.types.Object = chinarchCopy(
+                    sourceObj = puzuoCornerObj,
+                    name = "转角铺作",
+                    locX = puzuoCornerArray[n][0],
+                    locY = puzuoCornerArray[n][1],
+                    locZ = pill_top,
+                    parentObj = root_obj,
+                    linkCollection = coll_name
+                    )
+                puzuoCornerCopy.rotation_euler.z = math.radians(n * 90)
+                redrawViewport()
+            # 隐藏参考铺作
+            hideObj(puzuoCornerObj)
+            
+        # 四面柱头铺作
+        if dataset.puzuo_piller_source != '':
+            puzuoPillerObj:bpy.types.Object = context.scene.objects.get(dataset.puzuo_piller_source)
+            # 下侧
+            for n in range(len(net_x)-2) : 
+                puzuoPillerCopy:bpy.types.Object = chinarchCopy(
+                    sourceObj = puzuoPillerObj,
+                    name = "柱头铺作",
+                    locX = net_x[n+1],
+                    locY = net_y[0],
+                    locZ = pill_top,
+                    parentObj = root_obj,
+                    linkCollection = coll_name
+                    )
+                redrawViewport()
+            # 右侧
+            for n in range(len(net_y)-2) : 
+                puzuoPillerCopy:bpy.types.Object = chinarchCopy(
+                    sourceObj = puzuoPillerObj,
+                    name = "柱头铺作",
+                    locX = net_x[-1],
+                    locY = net_y[n+1],
+                    locZ = pill_top,
+                    parentObj = root_obj,
+                    linkCollection = coll_name
+                    )
+                puzuoPillerCopy.rotation_euler.z = math.radians(90)
+                redrawViewport()
+            # 上侧
+            for n in range(len(net_x)-2) : 
+                puzuoPillerCopy:bpy.types.Object = chinarchCopy(
+                    sourceObj = puzuoPillerObj,
+                    name = "柱头铺作",
+                    locX = net_x[-n-2],
+                    locY = net_y[-1],
+                    locZ = pill_top,
+                    parentObj = root_obj,
+                    linkCollection = coll_name
+                    )
+                puzuoPillerCopy.rotation_euler.z = math.radians(180)
+                redrawViewport()
+            # 左侧
+            for n in range(len(net_y)-2) : 
+                puzuoPillerCopy:bpy.types.Object = chinarchCopy(
+                    sourceObj = puzuoPillerObj,
+                    name = "柱头铺作",
+                    locX = net_x[0],
+                    locY = net_y[-n-2],
+                    locZ = pill_top,
+                    parentObj = root_obj,
+                    linkCollection = coll_name
+                    )
+                puzuoPillerCopy.rotation_euler.z = math.radians(270)
+                redrawViewport()            
+            # 隐藏参考铺作
+            hideObj(puzuoPillerObj)
+        
+        # 四面补间铺作
+        if dataset.puzuo_fillgap_source != '' :
+            puzuoFillObj:bpy.types.Object = context.scene.objects.get(dataset.puzuo_fillgap_source)
+            # 下侧
+            for n in range(len(net_x)-1) : 
+                puzuoFillCopy:bpy.types.Object = chinarchCopy(
+                    sourceObj = puzuoFillObj,
+                    name = "补间铺作",
+                    locX = (net_x[n] + net_x[n+1])/2,
+                    locY = net_y[0],
+                    locZ = pill_top,
+                    parentObj = root_obj,
+                    linkCollection = coll_name
+                    )
+                redrawViewport()
+            # 右侧
+            for n in range(len(net_y)-1) : 
+                puzuoFillCopy:bpy.types.Object = chinarchCopy(
+                    sourceObj = puzuoFillObj,
+                    name = "补间铺作",
+                    locX = net_x[-1],
+                    locY = (net_y[n] + net_y[n+1])/2,
+                    locZ = pill_top,
+                    parentObj = root_obj,
+                    linkCollection = coll_name
+                    )
+                puzuoFillCopy.rotation_euler.z = math.radians(90)
+                redrawViewport()
+            # 上侧
+            for n in range(len(net_x)-1) : 
+                puzuoFillCopy:bpy.types.Object = chinarchCopy(
+                    sourceObj = puzuoFillObj,
+                    name = "补间铺作",
+                    locX = (net_x[-1-n] + net_x[-2-n])/2,
+                    locY = net_y[-1],
+                    locZ = pill_top,
+                    parentObj = root_obj,
+                    linkCollection = coll_name
+                    )
+                puzuoFillCopy.rotation_euler.z = math.radians(180)
+                redrawViewport()    
+            # 左侧
+            for n in range(len(net_y)-1) : 
+                puzuoFillCopy:bpy.types.Object = chinarchCopy(
+                    sourceObj = puzuoFillObj,
+                    name = "补间铺作",
+                    locX = net_x[0],
+                    locY = (net_y[-1-n] + net_y[-2-n])/2,
+                    locZ = pill_top,
+                    parentObj = root_obj,
+                    linkCollection = coll_name
+                    )
+                puzuoFillCopy.rotation_euler.z = math.radians(270)
+                redrawViewport() 
+            # 隐藏参考铺作
+            hideObj(puzuoPillerObj)
 
         # 选择聚焦到根结点
         root_obj.select_set(True)
 
         return {'FINISHED'}
-
-# 复制对象（仅复制instance，包括modifier）
-def chinarchCopy(sourceObj, name, locX, locY, locZ, parentObj, linkCollection):
-    # 强制原对象不能隐藏
-    IsHideViewport = sourceObj.hide_viewport
-    sourceObj.hide_viewport = False
-    IsHideRender = sourceObj.hide_render
-    sourceObj.hide_render = False
-    
-    # 复制基本信息
-    newObj = sourceObj.copy()
-    newObj.name = name
-    newObj.location.x = locX
-    newObj.location.y = locY
-    newObj.location.z = locZ
-    newObj.parent = parentObj
-    bpy.context.collection.objects.link(newObj) 
-
-    # 复制modifier
-    bpy.ops.object.select_all(action='DESELECT')
-    sourceObj.select_set(True)
-    bpy.context.view_layer.objects.active = sourceObj
-    newObj.select_set(True)
-    bpy.ops.object.make_links_data(type='MODIFIERS') 
-
-    # 恢复原对象的隐藏属性
-    sourceObj.hide_viewport = IsHideViewport
-    sourceObj.hide_render = IsHideRender
-    
-    return newObj
-
-# 递归查询，并选择collection，似乎没有找到更好的办法
-# Recursivly transverse layer_collection for a particular name
-# https://blender.stackexchange.com/questions/127403/change-active-collection
-def recurLayerCollection(layerColl, collName):
-    found = None
-    if (layerColl.name == collName):
-        return layerColl
-    for layer in layerColl.children:
-        found = recurLayerCollection(layer, collName)
-        if found:
-            return found
 
 # 保存柱网
 # 用户可以手工减柱，然后在panel上点击“保存柱网”

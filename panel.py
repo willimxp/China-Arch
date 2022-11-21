@@ -68,6 +68,15 @@ class CHINAARCH_PT_panel_base(bpy.types.Panel):
         row = box.row()
         row.prop_search(dataset,"lane_source",bpy.data,"objects")
 
+        # 选择铺作对象
+        box = layout.box() 
+        row = box.row()
+        row.prop_search(dataset,"puzuo_piller_source",bpy.data,"objects")
+        row = box.row()
+        row.prop_search(dataset,"puzuo_fillgap_source",bpy.data,"objects")
+        row = box.row()
+        row.prop_search(dataset,"puzuo_corner_source",bpy.data,"objects")
+
         # 选择框：是否自动重绘
         row = layout.row()
         row.prop(context.scene.chinarch_data, "is_auto_redraw")
@@ -75,8 +84,6 @@ class CHINAARCH_PT_panel_base(bpy.types.Panel):
         row = layout.row()
         row.operator("chinarch.build",icon='HOME')
 
-       
-                        
 # 构件属性面板
 class CHINAARCH_PT_panel_property(bpy.types.Panel):
     bl_idname = "CHINAARCH_PT_panel_property"

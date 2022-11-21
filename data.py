@@ -94,7 +94,21 @@ class CHINARCH_scene_data(bpy.types.PropertyGroup):
     piller_net : bpy.props.StringProperty(
             name="保存的柱网列表"
         )
-
+    puzuo_piller_source : bpy.props.StringProperty(
+            name="柱头铺作",
+            default="", 
+            update=update_func
+        )
+    puzuo_fillgap_source : bpy.props.StringProperty(
+            name="补间铺作",
+            default="", 
+            update=update_func
+        )
+    puzuo_corner_source : bpy.props.StringProperty(
+            name="转角铺作",
+            default="", 
+            update=update_func
+        )
     is_auto_redraw : bpy.props.BoolProperty(
             default=True,
             name="是否自动重绘"
