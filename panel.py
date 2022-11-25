@@ -8,7 +8,7 @@ import data
 # 地盘设置面板
 class CHINAARCH_PT_panel_base(bpy.types.Panel):
     bl_idname = "CHINAARCH_PT_panel_base"
-    bl_label = "总体结构" 
+    bl_label = "柱网层" 
     bl_category = "China Arch"
     bl_region_type = 'UI'
     bl_space_type = 'VIEW_3D'    
@@ -19,6 +19,10 @@ class CHINAARCH_PT_panel_base(bpy.types.Panel):
         layout = self.layout
         # row = layout.row()
         # row.label(text="地盘设置")
+        
+        # 选择框：是否自动重绘
+        row = layout.row()
+        row.prop(context.scene.chinarch_data, "is_auto_redraw")
 
         #box 一
         box = layout.box()   
@@ -68,6 +72,23 @@ class CHINAARCH_PT_panel_base(bpy.types.Panel):
         row = box.row()
         row.prop_search(dataset,"lane_source",bpy.data,"objects")
 
+        # 按钮：生成建筑外形，绑定build operator
+        row = layout.row()
+        row.operator("chinarch.buildpiller",icon='HOME')
+
+# 铺作属性面板
+class CHINAARCH_PT_panel_puzuo(bpy.types.Panel):
+    bl_idname = "CHINAARCH_PT_panel_puzuo"
+    bl_label = "铺作层" 
+    bl_category = "China Arch"
+    bl_region_type = 'UI'
+    bl_space_type = 'VIEW_3D'    
+    bl_context = "objectmode"
+
+    def draw(self, context):
+        dataset : data.CHINARCH_scene_data = context.scene.chinarch_data
+        layout = self.layout
+
         # 选择铺作对象
         box = layout.box() 
         row = box.row()
@@ -77,12 +98,41 @@ class CHINAARCH_PT_panel_base(bpy.types.Panel):
         row = box.row()
         row.prop_search(dataset,"puzuo_corner_source",bpy.data,"objects")
 
-        # 选择框：是否自动重绘
-        row = layout.row()
-        row.prop(context.scene.chinarch_data, "is_auto_redraw")
         # 按钮：生成建筑外形，绑定build operator
         row = layout.row()
-        row.operator("chinarch.build",icon='HOME')
+        row.operator("chinarch.buildpuzuo",icon='HOME')
+
+# 屋顶属性面板
+class CHINAARCH_PT_panel_roof(bpy.types.Panel):
+    bl_idname = "CHINAARCH_PT_panel_roof"
+    bl_label = "屋顶层" 
+    bl_category = "China Arch"
+    bl_region_type = 'UI'
+    bl_space_type = 'VIEW_3D'    
+    bl_context = "objectmode"
+
+    def draw(self, context):
+        dataset : data.CHINARCH_scene_data = context.scene.chinarch_data
+        layout = self.layout
+        
+        # 选择铺作对象
+        box = layout.box() 
+        col = box.column(align=True)
+        col.prop(dataset,"roof_base")   # 檐槫高
+        col.prop(dataset,"roof_height") # 举高
+        col.prop(dataset,"roof_extend") # 斗栱出跳
+        col.prop(dataset,"rafter_count_select")   # 椽架数量
+
+        row = box.row()
+        row.prop_search(dataset,"tuan_source",bpy.data,"objects")   #槫子对象
+        row = box.row()
+        row.prop_search(dataset,"rafter_source",bpy.data,"objects")   #椽子对象
+        row = box.row()
+        row.prop_search(dataset,"fu_source",bpy.data,"objects")     #梁栿对象
+
+        # 按钮：生成建筑外形，绑定build operator
+        row = layout.row()
+        row.operator("chinarch.buildroof",icon='HOME')
 
 # 构件属性面板
 class CHINAARCH_PT_panel_property(bpy.types.Panel):

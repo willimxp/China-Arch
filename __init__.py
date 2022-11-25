@@ -36,9 +36,13 @@ classes = (
     data.CHINARCH_scene_data,
 
     panel.CHINAARCH_PT_panel_base,
+    panel.CHINAARCH_PT_panel_puzuo,
+    panel.CHINAARCH_PT_panel_roof,
     panel.CHINAARCH_PT_panel_property,
 
-    operator.CHINARCH_OT_build,
+    operator.CHINARCH_OT_build_piller,
+    operator.CHINARCH_OT_build_puzuo,
+    operator.CHINARCH_OT_build_roof,
     operator.CHINARCH_OT_piller_net_save,
     operator.CHINARCH_OT_piller_net_reset,
     operator.CHINARCH_OT_level_scale

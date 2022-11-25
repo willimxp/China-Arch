@@ -3,10 +3,15 @@
 # 构建逻辑类
 # 根据输入的数据参数，按照《营造法式》，完成建筑体的自动建模
 
+import math
 import bpy
 from bpy_extras.object_utils import AddObjectHelper
+from mathutils import Vector
 from . import data
-import math
+
+# 柱网坐标，在全局共用
+net_x=[]
+net_y=[]
 
 # 隐藏对象，包括viewport和render渲染
 def hideObj(object:bpy.types.Object) : 
@@ -15,7 +20,8 @@ def hideObj(object:bpy.types.Object) :
     object.hide_render = True      # 隐藏“相机”，不渲染
 
 # 复制对象（仅复制instance，包括modifier）
-def chinarchCopy(sourceObj, name, locX, locY, locZ, parentObj, linkCollection):
+def chinarchCopy(sourceObj:bpy.types.Object, name, 
+        locX, locY, locZ, parentObj:bpy.types.Object):
     # 强制原对象不能隐藏
     IsHideViewport = sourceObj.hide_viewport
     sourceObj.hide_viewport = False
@@ -23,7 +29,7 @@ def chinarchCopy(sourceObj, name, locX, locY, locZ, parentObj, linkCollection):
     sourceObj.hide_render = False
     
     # 复制基本信息
-    newObj = sourceObj.copy()
+    newObj:bpy.types.Object = sourceObj.copy()
     newObj.name = name
     newObj.location.x = locX
     newObj.location.y = locY
@@ -60,34 +66,29 @@ def recurLayerCollection(layerColl, collName):
 def redrawViewport():
     bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
 
-# 根据基本参数，构建建筑体
-class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
-    bl_idname="chinarch.build"
-    bl_label = "生成建筑外形"
+# 新建或找到china_arch目录
+# 所有对象建立在china_arch目录下，以免误删用户自建的模型
+def getCollection(context:bpy.types.Context, name:str, isRedraw:bool):
+    coll_name = name  # 在大纲中的目录名称
+    coll_found = False
+    coll = bpy.types.Collection
+    for coll in context.scene.collection.children:
+        # 在有多个scene时，名称可能是“china_arch.001”
+        if str.find(coll.name,coll_name) >= 0:
+            coll_found = True
+            coll_name = coll.name
+            break   # 找到第一个匹配的目录
 
-    def execute(self, context): 
-        # 从data中读取用户通过Panel输入的值
-        dataset : data.CHINARCH_scene_data = \
-            context.scene.chinarch_data
-
-        # 1、创建china_arch collection集合
-        # 所有对象建立在china_arch目录下，以免误删用户自建的模型
-        coll_name = 'china_arch'  # 在大纲中的目录名称
-        coll_found = False
-        for coll in context.scene.collection.children:
-            if str.find(coll.name,coll_name) >= 0:
-                coll_found = True
-                coll_name = coll.name
-                break   # 找到第一个匹配的目录
-
-        if not coll_found:    
-            # 新建collection，不与其他用户自建的模型打架
-            print("PP: Add new collection " + coll_name)
-            coll = bpy.data.collections.new(coll_name)
-            context.scene.collection.children.link(coll)
-            context.view_layer.active_layer_collection = \
-                context.view_layer.layer_collection.children[-1]
-        else:               
+    if not coll_found:    
+        # 新建collection，不与其他用户自建的模型打架
+        print("PP: Add new collection " + coll_name)
+        coll = bpy.data.collections.new(coll_name)
+        context.scene.collection.children.link(coll)
+        # 聚焦到新目录上
+        context.view_layer.active_layer_collection = \
+            context.view_layer.layer_collection.children[-1]
+    else:
+        if isRedraw :
             # 清空collection，每次重绘
             print("PP: Clear collection " + coll_name)
             for obj in coll.objects: 
@@ -99,14 +100,38 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
             layer_collection = bpy.context.view_layer.layer_collection
             layerColl = recurLayerCollection(layer_collection, coll_name)
             bpy.context.view_layer.active_layer_collection = layerColl
+    
+    # 返回china_arch目录的对象
+    return coll
+
+# 计算两个点之间距离
+# 使用blender提供的mathutils库中的Vector类
+# https://sinestesia.co/blog/tutorials/calculating-distances-in-blender-with-python/
+def getVectorDistance(point1: Vector, point2: Vector) -> float:
+    """Calculate distance between two points.""" 
+    return (point2 - point1).length
+
+# 根据基本参数，构建建筑体
+class CHINARCH_OT_build_piller(bpy.types.Operator, AddObjectHelper):
+    bl_idname="chinarch.buildpiller"
+    bl_label = "生成柱网层"
+
+    def execute(self, context): 
+        # 从data中读取用户通过Panel输入的值
+        dataset : data.CHINARCH_scene_data = \
+            context.scene.chinarch_data
         
-        redrawViewport()
+        # 1、创建china_arch collection集合
+        # 所有对象建立在china_arch目录下，以免误删用户自建的模型
+        root_coll = getCollection(context, "ca铺作层" ,True) #清空目录
+        root_coll = getCollection(context, "ca屋顶层" ,True) #清空目录
+        root_coll = getCollection(context, "ca柱网层" ,True)        
 
         # 2、创建根对象（empty）===========================================================
-        print("PP: Build root")
         bpy.ops.object.empty_add(type='PLAIN_AXES')
         root_obj = context.object
-        root_obj.name = "中式建筑"
+        root_obj.name = "柱网层"
+        root_obj.location = (0,0,0)
 
         # 3、创建地基===========================================================
         print("PP: Build base")
@@ -205,7 +230,8 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
             piller_mesh = bpy.data.objects.get(piller_source)
         
         # 构造柱网X坐标序列，罗列了1，3，5，7，9，11间的情况，未能抽象成通用公式
-        net_x=[]
+        global net_x
+        net_x = []  # 重新计算
         if x_rooms >=1:     # 明间
             offset = dataset.x_1 / 2
             net_x.append(offset)
@@ -244,7 +270,8 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
             net_x.insert(0, -offset) 
 
         # 构造柱网Y坐标序列，罗列了1-5间的情况，未能抽象成通用公式
-        net_y=[]
+        global net_y
+        net_y=[]    # 重新计算
         if y_rooms%2 == 1: # 奇数间
             if y_rooms >= 1:     # 明间
                 offset = dataset.y_1 / 2
@@ -290,8 +317,7 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                     locX = net_x[x],
                     locY = net_y[y],
                     locZ = piller_mesh.location.z,
-                    parentObj = root_obj,
-                    linkCollection = coll_name
+                    parentObj = root_obj
                 )
                 
                 # # 复制柱础 ## 柱础选择暂时在UI上已隐藏，此逻辑暂时无用
@@ -305,13 +331,10 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                 #         locX = x * room_space - offset_x,
                 #         locY = y * room_space - offset_y,
                 #         locZ = piller_base_obj.location.z,
-                #         parentObj = root_obj,
-                #         linkCollection = coll_name
+                #         parentObj = root_obj
                 #     )
 
                 redrawViewport()
-
-        #piller_mesh.select_set(False)
 
         # 柱高，为后续阑额定位使用
         pill_top = piller_mesh.dimensions.z
@@ -373,8 +396,7 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                                 locX = x_now,
                                 locY = net_y[ny],
                                 locZ = x_zcord,
-                                parentObj = root_obj,
-                                linkCollection = coll_name
+                                parentObj = root_obj
                                 )
                             lane_copy.scale.x = lane_length / lane_copy.dimensions.x
                         # 向上传递旧坐标
@@ -432,8 +454,7 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                                 locX = net_x[nx],
                                 locY = y_now,
                                 locZ = y_zcord,
-                                parentObj = root_obj,
-                                linkCollection = coll_name
+                                parentObj = root_obj
                                 )
                             lane_copy.scale.x = lane_length / lane_copy.dimensions.x
                             lane_copy.rotation_euler.z = math.radians(90)
@@ -452,7 +473,46 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
         if dataset.lane_source != '' :
             hideObj(lane_obj)
 
-        # 6、布置铺作======================================================
+        
+
+        # 选择聚焦到根结点
+        root_obj.select_set(True)
+
+        return {'FINISHED'}
+
+# 构建铺作层
+class CHINARCH_OT_build_puzuo(bpy.types.Operator):
+    bl_idname="chinarch.buildpuzuo"
+    bl_label = "构建铺作"
+
+    def execute(self, context): 
+        # 从data中读取用户通过Panel输入的值
+        dataset : data.CHINARCH_scene_data = \
+            context.scene.chinarch_data
+        global net_x
+        global net_y
+        if len(net_x) == 0:
+            bpy.ops.chinarch.buildpiller()
+
+        # 1、创建china_arch collection集合
+        # 所有对象建立在china_arch目录下，以免误删用户自建的模型
+        root_coll = getCollection(context,"ca铺作层",True)  
+
+        # 2、创建根对象（empty）===========================================================
+        if dataset.piller_source != '' :
+            pillerObj:bpy.types.Object = context.scene.objects.get(dataset.piller_source)
+        pill_top = pillerObj.dimensions.z
+
+        # 默认无普拍枋时，铺作直接坐于柱头
+        puzuo_base = pill_top   
+        bpy.ops.object.empty_add(type='PLAIN_AXES')
+        root_obj = context.object
+        root_obj.name = "铺作层"
+        root_obj.location = (0,0,puzuo_base)
+
+        # 3、布置铺作======================================================
+        
+
         if dataset.puzuo_corner_source != '':
             # 转角铺作
             puzuoCornerObj:bpy.types.Object = context.scene.objects.get(dataset.puzuo_corner_source)
@@ -469,9 +529,8 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                     name = "转角铺作",
                     locX = puzuoCornerArray[n][0],
                     locY = puzuoCornerArray[n][1],
-                    locZ = pill_top,
-                    parentObj = root_obj,
-                    linkCollection = coll_name
+                    locZ = 0,
+                    parentObj = root_obj
                     )
                 puzuoCornerCopy.rotation_euler.z = math.radians(n * 90)
                 redrawViewport()
@@ -488,9 +547,8 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                     name = "柱头铺作",
                     locX = net_x[n+1],
                     locY = net_y[0],
-                    locZ = pill_top,
-                    parentObj = root_obj,
-                    linkCollection = coll_name
+                    locZ = 0,
+                    parentObj = root_obj
                     )
                 redrawViewport()
             # 右侧
@@ -500,9 +558,8 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                     name = "柱头铺作",
                     locX = net_x[-1],
                     locY = net_y[n+1],
-                    locZ = pill_top,
-                    parentObj = root_obj,
-                    linkCollection = coll_name
+                    locZ = 0,
+                    parentObj = root_obj
                     )
                 puzuoPillerCopy.rotation_euler.z = math.radians(90)
                 redrawViewport()
@@ -513,9 +570,8 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                     name = "柱头铺作",
                     locX = net_x[-n-2],
                     locY = net_y[-1],
-                    locZ = pill_top,
-                    parentObj = root_obj,
-                    linkCollection = coll_name
+                    locZ = 0,
+                    parentObj = root_obj
                     )
                 puzuoPillerCopy.rotation_euler.z = math.radians(180)
                 redrawViewport()
@@ -526,9 +582,8 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                     name = "柱头铺作",
                     locX = net_x[0],
                     locY = net_y[-n-2],
-                    locZ = pill_top,
-                    parentObj = root_obj,
-                    linkCollection = coll_name
+                    locZ = 0,
+                    parentObj = root_obj
                     )
                 puzuoPillerCopy.rotation_euler.z = math.radians(270)
                 redrawViewport()            
@@ -545,9 +600,8 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                     name = "补间铺作",
                     locX = (net_x[n] + net_x[n+1])/2,
                     locY = net_y[0],
-                    locZ = pill_top,
-                    parentObj = root_obj,
-                    linkCollection = coll_name
+                    locZ = 0,
+                    parentObj = root_obj
                     )
                 redrawViewport()
             # 右侧
@@ -557,9 +611,8 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                     name = "补间铺作",
                     locX = net_x[-1],
                     locY = (net_y[n] + net_y[n+1])/2,
-                    locZ = pill_top,
-                    parentObj = root_obj,
-                    linkCollection = coll_name
+                    locZ = 0,
+                    parentObj = root_obj
                     )
                 puzuoFillCopy.rotation_euler.z = math.radians(90)
                 redrawViewport()
@@ -570,9 +623,8 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                     name = "补间铺作",
                     locX = (net_x[-1-n] + net_x[-2-n])/2,
                     locY = net_y[-1],
-                    locZ = pill_top,
-                    parentObj = root_obj,
-                    linkCollection = coll_name
+                    locZ = 0,
+                    parentObj = root_obj
                     )
                 puzuoFillCopy.rotation_euler.z = math.radians(180)
                 redrawViewport()    
@@ -583,17 +635,198 @@ class CHINARCH_OT_build(bpy.types.Operator, AddObjectHelper):
                     name = "补间铺作",
                     locX = net_x[0],
                     locY = (net_y[-1-n] + net_y[-2-n])/2,
-                    locZ = pill_top,
-                    parentObj = root_obj,
-                    linkCollection = coll_name
+                    locZ = 0,
+                    parentObj = root_obj
                     )
                 puzuoFillCopy.rotation_euler.z = math.radians(270)
-                redrawViewport() 
+                redrawViewport()             
             # 隐藏参考铺作
-            hideObj(puzuoPillerObj)
+            hideObj(puzuoFillObj)
 
-        # 选择聚焦到根结点
-        root_obj.select_set(True)
+        return {'FINISHED'}
+
+# 构建屋顶层
+class CHINARCH_OT_build_roof(bpy.types.Operator):
+    bl_idname="chinarch.buildroof"
+    bl_label = "构建屋顶"
+
+    def execute(self, context): 
+        # 从data中读取用户通过Panel输入的值
+        dataset : data.CHINARCH_scene_data = \
+            context.scene.chinarch_data
+
+        # 1、创建china_arch collection集合
+        # 所有对象建立在china_arch目录下，以免误删用户自建的模型
+        getCollection(context,"ca屋顶层",True)  
+
+        # 获取全局参数，柱网坐标
+        global net_x
+        global net_y
+        if len(net_x) == 0:
+            bpy.ops.chinarch.buildpiller()
+            bpy.ops.chinarch.buildpuzuo()
+            # 将焦点重新聚到屋顶层
+            root_coll = getCollection(context,"ca屋顶层",True)          
+
+        # 2、创建根对象（empty）===========================================================
+        roof_base = dataset.roof_base   # 屋顶起始高度，撩风槫中点
+        bpy.ops.object.empty_add(type='PLAIN_AXES')
+        root_obj = context.object
+        root_obj.name = "屋顶层"
+        root_obj.location = (0,0,roof_base)
+
+        # 3、计算槫子的坐标列表============================================================
+        # 用户自定义屋顶参数
+        roof_height = dataset.roof_height   # 举高            
+        roof_extend = dataset.roof_extend   # 斗栱出跳
+        #rafter_count = dataset.rafter_count # 椽架数
+        rafter_count = int(dataset.rafter_count_select)
+        hill_extend = 1.5   # 两厦出际，殿堂为1椽，厅堂为3～5尺，这里简化为固定值
+
+        # 根据柱网，计算屋的总宽，总深
+        room_width = net_x[-1] - net_x[0]  # 屋宽
+        room_length = net_y[-1] - net_y[0] # 屋深
+        # 前后撩风槫距离=屋深+斗栱出跳x2
+        eave_length = room_length + roof_extend*2
+        eave_width = room_width + roof_extend*2
+        # 椽架宽度=屋深/椽架数
+        rafter_space = room_length / rafter_count
+        rafter_extend = 0.6     # 槫子相交出头(两头一共) 
+
+        # 槫子位置列表(x,y,z,length,rotation)
+        purlin_pos = []
+        # 椽子定位点，基于槫子的举折，便于后续布椽子(x,y,z)
+        rafter_pos = []
+        
+        # 脊槫
+        if rafter_count >= 6 :
+            # 6架椽以上，山宽=屋宽-内转两侧各2椽+向外出际
+            hill_width = room_width - rafter_space*4 + hill_extend 
+        elif rafter_count >= 4 :
+            # 4架椽以下，只转1椽
+            hill_width = room_width - rafter_space*2 + hill_extend
+        else : 
+            # 2架椽一下，无歇山，有出际
+            hill_width = room_width + hill_extend
+        purlin_pos.append((0,0,roof_height,hill_width,0))
+        rafter_pos.append((0,0,roof_height))
+
+        # 平槫举折计算(4椽以上才有举折，2椽无举折)
+        rafter_z = roof_height
+        rafter_z_pre = roof_height # 迭代高度
+        if rafter_count >= 4 :
+            shift_var  = roof_height / 10   # 营造法式的举折量，可以调整该参数，改变曲率
+            shift_time  = 2               # 举折公比，可以调整该参数，改变曲率
+            for n in range(1,int(rafter_count/2)):
+                # 椽架水平位置
+                rafter_y = n * rafter_space
+                # 举折高度，迭代
+                rafter_z = rafter_z_pre \
+                        - rafter_z_pre * 1/(rafter_count/2-(n-1)) \
+                        - shift_var/(shift_time**(n-1))
+                # 2椽以上的槫子为歇山宽度
+                if n == rafter_count/2-1 and rafter_count >= 6 :
+                    # 大于6椽，歇山转2椽，下平槫长度减1椽
+                    rafter_length = room_width - rafter_space*2 + rafter_extend
+                else: 
+                    rafter_length = hill_width
+                purlin_pos.append((0, rafter_y, rafter_z,rafter_length,0))
+                purlin_pos.append((0, -rafter_y, rafter_z,rafter_length,0))
+                rafter_pos.append((0, rafter_y, rafter_z))
+
+                #山面平槫
+                if (rafter_count/2 - n <= 2 and rafter_count >= 6) or \
+                    (rafter_count/2 - n <= 1 and rafter_count >= 4):
+                    # 6椽架以上，山面下平槫，下平槫减1椽
+                    # 4椽架以下，平槫减1椽
+                    rafter_x = room_width/2 - rafter_space*(rafter_count/2-n)
+                    rafter_length = room_length - rafter_space*2*(rafter_count/2-n) + rafter_extend
+                    purlin_pos.append((rafter_x, 0, rafter_z,rafter_length,90))
+                    purlin_pos.append((-rafter_x, 0, rafter_z,rafter_length,90))                
+
+                # 为下一次迭代保存当前高度
+                rafter_z_pre = rafter_z
+        
+        # 牛脊槫，位于柱头上方，在撩檐枋和平槫的连接线上
+        piller_tuan_y = room_length/2
+        piller_tuan_z = rafter_z*roof_extend / (roof_extend+rafter_space)
+        # 牛脊槫长=屋宽+斗栱出跳x2+槫子出头
+        rafter_length = room_width + rafter_extend
+        purlin_pos.append((0,piller_tuan_y,piller_tuan_z,rafter_length,0))
+        purlin_pos.append((0,-piller_tuan_y,piller_tuan_z,rafter_length,0))
+        # 山面牛脊槫
+        piller_tuan_x = room_width/2
+        rafter_length = room_length + rafter_extend
+        purlin_pos.append((piller_tuan_x,0,piller_tuan_z,rafter_length,90))
+        purlin_pos.append((-piller_tuan_x,0,piller_tuan_z,rafter_length,90))
+
+        # 撩风槫
+        rafter_length = eave_width + rafter_extend
+        purlin_pos.append((0,eave_length/2,0,rafter_length,0))
+        purlin_pos.append((0,-eave_length/2,0,rafter_length,0))
+        rafter_pos.append((0,eave_length/2,0))
+        # 山面撩风槫
+        rafter_length = eave_length + rafter_extend
+        purlin_pos.append((eave_width/2,0,0,rafter_length,90))
+        purlin_pos.append((-eave_width/2,0,0,rafter_length,90))
+
+        # 布置所有槫子
+        if dataset.tuan_source != '' :
+            tuanObj:bpy.types.Object = context.scene.objects.get(dataset.tuan_source)
+            for pos in purlin_pos :
+                tuanCopyObj = chinarchCopy(
+                    sourceObj= tuanObj,
+                    name="槫子",
+                    locX=pos[0],
+                    locY=pos[1],
+                    locZ=pos[2],
+                    parentObj=root_obj
+                )
+                tuanCopyObj.dimensions.x = pos[3]
+                tuanCopyObj.rotation_euler.z = math.radians(pos[4])
+
+            hideObj(tuanObj)
+
+        # 布置椽子
+        if dataset.rafter_source != '' :
+            rafterObj:bpy.types.Object = context.scene.objects.get(dataset.rafter_source)
+            point_pre = (0,0,0)
+            for n in range(len(rafter_pos)) :
+                if n == 0 :
+                    point_pre = rafter_pos[0]
+                else :
+                    point = rafter_pos[n]
+                    pX = (point_pre[0] + point[0]) /2
+                    pY = (point_pre[1] + point[1]) /2
+                    pZ = (point_pre[2] + point[2]) /2
+                    rafterCopyObj = chinarchCopy(
+                        sourceObj= rafterObj,
+                        name="椽子",
+                        locX = pX, locY = pY, locZ = pZ,
+                        parentObj=root_obj
+                    ) 
+                    rafterCopyObj.dimensions.x = getVectorDistance(Vector(point),Vector(point_pre))
+                    
+                    # 根据起止点计算旋转角度
+                    # https://blender.stackexchange.com/questions/194549/find-angles-between-list-of-sorted-vertices-using-vertex-co-angle
+                    y_axis = Vector((0,1,0))
+                    vec = Vector(point_pre) - Vector(point)
+                    rotaion = math.degrees(y_axis.angle(vec))
+                    rafterCopyObj.rotation_euler.y = math.radians(180-rotaion)
+                    # 添加Array modifier
+                    mod = rafterCopyObj.modifiers.new(name='array', type='ARRAY')
+                    mod.count = 40
+                    mod.relative_offset_displace[0] = 0
+                    mod.relative_offset_displace[1] = 2
+                    # 添加Mirror modifier
+                    mod = rafterCopyObj.modifiers.new(name='mirror', type='MIRROR')
+                    mod.use_axis[0] = True
+                    mod.use_axis[1] = True
+                    mod.mirror_object = root_obj
+                    # 迭代到下一个循环
+                    point_pre = point
+
+            hideObj(rafterObj)
 
         return {'FINISHED'}
 
@@ -632,7 +865,7 @@ class CHINARCH_OT_piller_net_reset(bpy.types.Operator):
         dataset.piller_net = ""
         
         # 调用重绘
-        bpy.ops.chinarch.build()
+        bpy.ops.chinarch.buildpiller()
         return {'FINISHED'}
 
 # 缩放构件材等
