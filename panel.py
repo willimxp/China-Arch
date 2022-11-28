@@ -118,17 +118,19 @@ class CHINAARCH_PT_panel_roof(bpy.types.Panel):
         # 选择铺作对象
         box = layout.box() 
         col = box.column(align=True)
+        col.prop(dataset,"rafter_count_select")   # 椽架数量
         col.prop(dataset,"roof_base")   # 檐槫高
         col.prop(dataset,"roof_height") # 举高
         col.prop(dataset,"roof_extend") # 斗栱出跳
-        col.prop(dataset,"rafter_count_select")   # 椽架数量
+        col.prop(dataset,"eave_extend") # 檐椽出跳
+        col.prop(dataset,"feizi_extend") # 飞子出跳
 
         row = box.row()
         row.prop_search(dataset,"tuan_source",bpy.data,"objects")   #槫子对象
         row = box.row()
         row.prop_search(dataset,"rafter_source",bpy.data,"objects")   #椽子对象
-        row = box.row()
-        row.prop_search(dataset,"fu_source",bpy.data,"objects")     #梁栿对象
+        # row = box.row()
+        # row.prop_search(dataset,"fu_source",bpy.data,"objects")     #梁栿对象
 
         # 按钮：生成建筑外形，绑定build operator
         row = layout.row()

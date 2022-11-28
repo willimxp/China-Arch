@@ -64,7 +64,8 @@ def recurLayerCollection(layerColl, collName):
 
 # 刷新viewport，避免长时间卡死，并可见到建造过程
 def redrawViewport():
-    bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
+    # bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
+    return 
 
 # 新建或找到china_arch目录
 # 所有对象建立在china_arch目录下，以免误删用户自建的模型
@@ -473,11 +474,7 @@ class CHINARCH_OT_build_piller(bpy.types.Operator, AddObjectHelper):
         if dataset.lane_source != '' :
             hideObj(lane_obj)
 
-        
-
-        # 选择聚焦到根结点
-        root_obj.select_set(True)
-
+        bpy.ops.object.select_all(action='DESELECT')
         return {'FINISHED'}
 
 # 构建铺作层
@@ -642,7 +639,8 @@ class CHINARCH_OT_build_puzuo(bpy.types.Operator):
                 redrawViewport()             
             # 隐藏参考铺作
             hideObj(puzuoFillObj)
-
+        
+        bpy.ops.object.select_all(action='DESELECT')
         return {'FINISHED'}
 
 # 构建屋顶层
@@ -787,47 +785,108 @@ class CHINARCH_OT_build_roof(bpy.types.Operator):
 
             hideObj(tuanObj)
 
-        # 布置椽子
+        # 计算前后檐和两厦的椽子参数，全部存入rafterList列表，然后一次性循环生成
         if dataset.rafter_source != '' :
             rafterObj:bpy.types.Object = context.scene.objects.get(dataset.rafter_source)
-            point_pre = (0,0,0)
+            rafter_offset = 0.12    # 槫子中心轴到椽子中心轴的偏移
+            rafter_extend = 0.2     # 椽子略微出头
+            rafterList = []     # 椽子属性列表，（x,y,z,rotation_x,rotation_y,rotaion_z,length,width）
+            point_pre = (0,0,0) # 迭代暂存
+
             for n in range(len(rafter_pos)) :
                 if n == 0 :
                     point_pre = rafter_pos[0]
                 else :
                     point = rafter_pos[n]
-                    pX = (point_pre[0] + point[0]) /2
-                    pY = (point_pre[1] + point[1]) /2
-                    pZ = (point_pre[2] + point[2]) /2
-                    rafterCopyObj = chinarchCopy(
-                        sourceObj= rafterObj,
-                        name="椽子",
-                        locX = pX, locY = pY, locZ = pZ,
-                        parentObj=root_obj
-                    ) 
-                    rafterCopyObj.dimensions.x = getVectorDistance(Vector(point),Vector(point_pre))
+                    
+                    #############################
+                    # 一、计算前后檐椽子参数
+                    # 默认采用“乱搭头”连接上下椽架，单数椽架移半椽，双数椽架坐中线
+                    if n%2 == 1:   
+                        pX = (point_pre[0] + point[0]) /2 - rafterObj.dimensions.y
+                    else:
+                        pX = (point_pre[0] + point[0]) /2 + 0.001   # 微偏，避免mirror产生的z-fighting
+                    # 椽子
+                    pY = (point_pre[1] + point[1]) /2 + rafter_offset
+                    pZ = (point_pre[2] + point[2]) /2 + rafter_offset                 
                     
                     # 根据起止点计算旋转角度
                     # https://blender.stackexchange.com/questions/194549/find-angles-between-list-of-sorted-vertices-using-vertex-co-angle
                     y_axis = Vector((0,1,0))
                     vec = Vector(point_pre) - Vector(point)
-                    rotaion = math.degrees(y_axis.angle(vec))
-                    rafterCopyObj.rotation_euler.y = math.radians(180-rotaion)
-                    # 添加Array modifier
-                    mod = rafterCopyObj.modifiers.new(name='array', type='ARRAY')
-                    mod.count = 40
-                    mod.relative_offset_displace[0] = 0
-                    mod.relative_offset_displace[1] = 2
-                    # 添加Mirror modifier
-                    mod = rafterCopyObj.modifiers.new(name='mirror', type='MIRROR')
-                    mod.use_axis[0] = True
-                    mod.use_axis[1] = True
-                    mod.mirror_object = root_obj
+                    rotaion_y = 180 - math.degrees(y_axis.angle(vec))
+                    width = hill_width
+                    
+                    # 椽子长度
+                    if n == len(rafter_pos)-1:
+                        # 最后一椽出檐
+                        length = getVectorDistance(Vector(point),Vector(point_pre))
+                        eave_extend = dataset.eave_extend   # 檐椽出跳宽度
+                        eave_extend_length = eave_extend * length / (point[1]-point_pre[1])
+                        length += rafter_extend + eave_extend_length
+                        # orgin几何中心相应偏移
+                        pY = pY + eave_extend / 2
+                        pZ = pZ - math.sqrt(eave_extend_length**2 - eave_extend**2) / 2
+                        width = room_width - rafter_space *2
+                    else :
+                        length = getVectorDistance(Vector(point),Vector(point_pre)) + rafter_extend
+
+                    # 填入list列表
+                    rafterList.append((pX,pY,pZ,0,rotaion_y,90,length,width))
+
+                    ##############################
+                    # 二、计算两厦椽子参数
+                    ppX = pY + room_width/2 - room_length/2
+                    # 6椽以上转2椽,4椽以下转1椽
+                    if rafter_count>=6 and n>=len(rafter_pos)-2 :
+                        width = room_length - rafter_space * 2 * (len(rafter_pos)-n)
+                        # 填入list列表
+                        # Y坐标直接对称到pX，不再重复计算
+                        # totation_y,length于前后檐的椽子相同，不再重复计算
+                        rafterList.append((ppX,pX,pZ,0,rotaion_y,0,length,width))
+                    elif rafter_count<=4 and n==len(rafter_pos)-1 :
+                        width = room_length - rafter_space * 2                        
+                        # 填入list列表
+                        # Y坐标直接对称到pX，不再重复计算
+                        # totation_y,length于前后檐的椽子相同，不再重复计算
+                        rafterList.append((ppX,pX,pZ,0,rotaion_y,0,length,width))
+
                     # 迭代到下一个循环
                     point_pre = point
 
+            # 根据构造的椽子列表，布椽
+            for rafter in rafterList :                
+                # Location
+                rafterCopyObj = chinarchCopy(
+                    sourceObj= rafterObj,
+                    name="椽子",
+                    locX = rafter[0], locY = rafter[1], locZ = rafter[2],
+                    parentObj=root_obj
+                )
+                # Rotation
+                rafterCopyObj.rotation_euler = (
+                    math.radians(rafter[3]),
+                    math.radians(rafter[4]),
+                    math.radians(rafter[5])
+                )
+                # Length
+                rafterCopyObj.dimensions.x = rafter[6]
+                
+                # Array modifier
+                arrayCount = rafter[7] / rafterObj.dimensions.y / 4
+                mod = rafterCopyObj.modifiers.new(name='array', type='ARRAY')
+                mod.count = int(arrayCount) +1
+                mod.relative_offset_displace[0] = 0
+                mod.relative_offset_displace[1] = 2
+
+                # Mirror modifier
+                mod = rafterCopyObj.modifiers.new(name='mirror', type='MIRROR')
+                mod.use_axis[0] = True
+                mod.use_axis[1] = True
+                mod.mirror_object = root_obj
             hideObj(rafterObj)
 
+        bpy.ops.object.select_all(action='DESELECT')
         return {'FINISHED'}
 
 # 保存柱网

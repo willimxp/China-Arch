@@ -181,3 +181,13 @@ class CHINARCH_scene_data(bpy.types.PropertyGroup):
             options={"ANIMATABLE"},
             update=update_roof
         )
+    eave_extend : bpy.props.FloatProperty(
+            name="檐椽出跳",
+            default=1.2, 
+            update=update_roof
+    )
+    feizi_extend : bpy.props.FloatProperty(
+            name="飞子出跳",
+            default=0.72, 
+            update=update_roof
+    )
