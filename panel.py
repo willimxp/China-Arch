@@ -124,13 +124,23 @@ class CHINAARCH_PT_panel_roof(bpy.types.Panel):
         col.prop(dataset,"roof_extend") # 斗栱出跳
         col.prop(dataset,"eave_extend") # 檐椽出跳
         col.prop(dataset,"feizi_extend") # 飞子出跳
-
+    
         row = box.row()
         row.prop_search(dataset,"tuan_source",bpy.data,"objects")   #槫子对象
         row = box.row()
         row.prop_search(dataset,"rafter_source",bpy.data,"objects")   #椽子对象
         # row = box.row()
         # row.prop_search(dataset,"fu_source",bpy.data,"objects")     #梁栿对象
+
+        # 翼角参数
+        row = layout.row()
+        row.label(text="翼角参数:")
+        box = layout.box() 
+        row = box.row()
+        row.prop_search(dataset,"CornerBeam_source",bpy.data,"objects")   #角梁对象
+        col = box.column(align=True)
+        col.prop(dataset,"chong") # 生出
+        col.prop(dataset,"qiqiao") # 起翘
 
         # 按钮：生成建筑外形，绑定build operator
         row = layout.row()

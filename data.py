@@ -143,6 +143,11 @@ class CHINARCH_scene_data(bpy.types.PropertyGroup):
             default="", 
             update=update_roof
         )
+    CornerBeam_source : bpy.props.StringProperty(
+            name="角梁",
+            default="", 
+            update=update_roof
+        )
     roof_base : bpy.props.FloatProperty(
             name="檐槫高",
             default=7.0, 
@@ -189,5 +194,15 @@ class CHINARCH_scene_data(bpy.types.PropertyGroup):
     feizi_extend : bpy.props.FloatProperty(
             name="飞子出跳",
             default=0.72, 
+            update=update_roof
+    )
+    qiqiao: bpy.props.IntProperty(
+            name="起翘(椽径倍数)",
+            default=4, 
+            update=update_roof
+    )
+    chong: bpy.props.IntProperty(
+            name="生出(椽径倍数)",
+            default=3, 
             update=update_roof
     )

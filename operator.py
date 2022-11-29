@@ -4,9 +4,11 @@
 # 根据输入的数据参数，按照《营造法式》，完成建筑体的自动建模
 
 import math
+import bmesh
 import bpy
 from bpy_extras.object_utils import AddObjectHelper
 from mathutils import Vector
+from mathutils import Matrix
 from . import data
 
 # 柱网坐标，在全局共用
@@ -644,7 +646,7 @@ class CHINARCH_OT_build_puzuo(bpy.types.Operator):
         return {'FINISHED'}
 
 # 构建屋顶层
-class CHINARCH_OT_build_roof(bpy.types.Operator):
+class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
     bl_idname="chinarch.buildroof"
     bl_label = "构建屋顶"
 
@@ -785,6 +787,8 @@ class CHINARCH_OT_build_roof(bpy.types.Operator):
 
             hideObj(tuanObj)
 
+        # ################################
+        # 4、计算生成椽子
         # 计算前后檐和两厦的椽子参数，全部存入rafterList列表，然后一次性循环生成
         if dataset.rafter_source != '' :
             rafterObj:bpy.types.Object = context.scene.objects.get(dataset.rafter_source)
@@ -799,7 +803,6 @@ class CHINARCH_OT_build_roof(bpy.types.Operator):
                 else :
                     point = rafter_pos[n]
                     
-                    #############################
                     # 一、计算前后檐椽子参数
                     # 默认采用“乱搭头”连接上下椽架，单数椽架移半椽，双数椽架坐中线
                     if n%2 == 1:   
@@ -834,7 +837,6 @@ class CHINARCH_OT_build_roof(bpy.types.Operator):
                     # 填入list列表
                     rafterList.append((pX,pY,pZ,0,rotaion_y,90,length,width))
 
-                    ##############################
                     # 二、计算两厦椽子参数
                     ppX = pY + room_width/2 - room_length/2
                     # 6椽以上转2椽,4椽以下转1椽
@@ -843,7 +845,7 @@ class CHINARCH_OT_build_roof(bpy.types.Operator):
                         # 填入list列表
                         # Y坐标直接对称到pX，不再重复计算
                         # totation_y,length于前后檐的椽子相同，不再重复计算
-                        rafterList.append((ppX,pX,pZ,0,rotaion_y,0,length,width))
+                        rafterList.append((ppX,-pX,pZ,0,rotaion_y,0,length,width))
                     elif rafter_count<=4 and n==len(rafter_pos)-1 :
                         width = room_length - rafter_space * 2                        
                         # 填入list列表
@@ -854,8 +856,17 @@ class CHINARCH_OT_build_roof(bpy.types.Operator):
                     # 迭代到下一个循环
                     point_pre = point
 
+            # 计算椽当（椽子之间的距离）
+            # 迁就檐椽为偶数排列
+            # 可以更为精确的让最后一根正身椽对齐下平槫交点
+            rafter_d = rafterObj.dimensions.y # 椽径
+            count = int((room_width-rafter_space*2)/rafter_d/2)
+            if count%2 == 0 : count+=1    #取奇数，最后的椽子数为偶数
+            rafter_gap = (room_width-rafter_space*2)/count/rafter_d #单位为n椽径，便于后续array使用
+
             # 根据构造的椽子列表，布椽
-            for rafter in rafterList :                
+            for n in range(len(rafterList)) :
+                rafter = rafterList[n]                 
                 # Location
                 rafterCopyObj = chinarchCopy(
                     sourceObj= rafterObj,
@@ -873,18 +884,163 @@ class CHINARCH_OT_build_roof(bpy.types.Operator):
                 rafterCopyObj.dimensions.x = rafter[6]
                 
                 # Array modifier
-                arrayCount = rafter[7] / rafterObj.dimensions.y / 4
+                # 计算椽子根数，基于2椽间距，结果取偶数（整数）
+                arrayCount = round(rafter[7]/rafter_gap/rafter_d/2) # 四舍五入取整
+                # if arrayCount%2 == 1 : arrayCount+=1    #取偶数
                 mod = rafterCopyObj.modifiers.new(name='array', type='ARRAY')
-                mod.count = int(arrayCount) +1
+                mod.count = arrayCount
                 mod.relative_offset_displace[0] = 0
-                mod.relative_offset_displace[1] = 2
+                mod.relative_offset_displace[1] = rafter_gap
 
                 # Mirror modifier
                 mod = rafterCopyObj.modifiers.new(name='mirror', type='MIRROR')
                 mod.use_axis[0] = True
                 mod.use_axis[1] = True
                 mod.mirror_object = root_obj
+
             hideObj(rafterObj)
+
+        #################################
+        # 5、计算老角梁Corner Beam，缩写为CB
+        if dataset.CornerBeam_source != '' : 
+            cbObj:bpy.types.Object = context.scene.objects.get(dataset.CornerBeam_source)
+
+            varChuChong = dataset.chong # 默认出冲3椽
+            l_ChuChong = rafterObj.dimensions.y * varChuChong
+            # 平面坐标=柱头+出檐+出冲
+            cb_x = room_width/2 + roof_extend + eave_extend + rafter_extend + l_ChuChong
+            cb_y = room_length/2 + roof_extend + eave_extend + rafter_extend + l_ChuChong
+
+            varQiQiao = dataset.qiqiao   # 默认起翘4椽
+            l_QiQiao = rafterObj.dimensions.y * varQiQiao
+            # 基于正身椽定位
+            zhengshenchuan_z = rafterList[-1][2]
+            zhengshenchuan_rotation = rafterList[-1][4]
+            zhengshenchuan_length = rafterList[-1][6]
+            # 根据斜率求直角边
+            zhengshenchuan_endz = zhengshenchuan_z - \
+                zhengshenchuan_length/2 * math.sin(math.radians(zhengshenchuan_rotation))
+            cb_z = zhengshenchuan_endz + l_QiQiao
+            cb_z -= cbObj.dimensions.z/2 # 椽对齐到大角梁上皮，准确的还应该加半椽
+
+            # 角梁尾置于下平槫交点（采用扣金做法，中点重合）
+            # 另有压金做法，但起翘幅度会压低
+            cb_end_x = room_width/2 - rafter_space
+            cb_end_y = room_length/2 - rafter_space
+            cb_end_z = rafter_pos[-2][2]    # 倒数第二个举折点            
+
+            # show the start & end point
+            bpy.ops.mesh.primitive_cube_add(size=0.1,location=(cb_x,cb_y,cb_z+cbObj.dimensions.z/2))
+            context.object.parent = root_obj
+            bpy.ops.mesh.primitive_cube_add(size=0.5,location=(cb_end_x,cb_end_y,cb_end_z))
+            context.object.parent = root_obj
+            
+            # 从下平槫交点 - 角梁顶点，放置角梁
+            cbCopyObj = chinarchCopy(
+                    sourceObj= cbObj,
+                    name="角梁",
+                    locX = (cb_x + cb_end_x)/2, 
+                    locY = (cb_y + cb_end_y)/2,
+                    locZ = (cb_z + cb_end_z)/2,
+                    parentObj=root_obj
+                )
+            cbCopyObj.dimensions.x = getVectorDistance(Vector((cb_x,cb_y,cb_z)),
+                Vector((cb_end_x,cb_end_y,cb_end_z))
+                )
+
+            # 根据起止点计算旋转角度
+            # https://blender.stackexchange.com/questions/194549/find-angles-between-list-of-sorted-vertices-using-vertex-co-angle
+            axis = Vector((0,0,1))
+            vec = Vector((cb_x,cb_y,cb_z)) - Vector((cb_end_x,cb_end_y,cb_end_z))
+            cbCopyObj.rotation_euler.y = axis.angle(vec) - math.radians(90)
+            cbCopyObj.rotation_euler.z = math.radians(45)
+
+            # Mirror modifier
+            mod = cbCopyObj.modifiers.new(name='mirror', type='MIRROR')
+            mod.use_axis[0] = True
+            mod.use_axis[1] = True
+            mod.mirror_object = root_obj
+
+            hideObj(cbObj)
+
+        ####################################
+        # 6、布置翼角椽，采用放射线布局Corner Rafter，缩写为CR
+        # 翼角椽根数
+        cr_count = round((cb_x - cb_end_x) / (rafterObj.dimensions.y + rafterObj.dimensions.y))
+        # 翼角椽水平间距
+        cr_gap = (cb_x - cb_end_x) / cr_count
+        for n in range(cr_count) :
+            cr_end_x = cb_x - n* cr_gap
+            bpy.ops.mesh.primitive_cube_add(size=0.1,
+                    location=(cr_end_x,
+                        cb_y,
+                        cb_z+cbObj.dimensions.z/2)
+                )
+            context.object.parent = root_obj
+
+            # 取角椽尾坐标和角梁头坐标的中点
+            cr_x = (cr_end_x+cb_end_x)/2
+            cr_y = (cb_y + cb_end_y)/2
+            cr_z = cb_end_z
+            crCopyObj = chinarchCopy(
+                    sourceObj= rafterObj,
+                    name="翼角椽",
+                    locX = cr_x, 
+                    locY = cr_y,
+                    locZ = cr_z/2,
+                    parentObj=root_obj
+                )
+            crCopyObj.dimensions.x += 4
+
+            # 根据起止点计算旋转角度
+            # https://blender.stackexchange.com/questions/194549/find-angles-between-list-of-sorted-vertices-using-vertex-co-angle
+            axis = Vector((0,1,0))
+            vec = Vector((cr_end_x,cb_y,cb_end_z)) - Vector((cb_end_x,cb_end_y,cb_end_z))
+            crCopyObj.rotation_euler.z = math.radians(90) - axis.angle(vec)  
+            
+        #########################
+        # 7、绘制飞檐曲线
+        # 正身椽为直线，翼角从最后一根正身椽连接到角梁头的圆弧
+        # 圆弧的弦高可由用户自定义
+        # 圆弧的公式推导参考
+        # https://math.stackexchange.com/questions/564058/calculate-the-radius-of-a-circle-given-the-chord-length-and-height-of-a-segment
+        # 圆弧的代码参考
+        # https://blender.stackexchange.com/questions/133870/how-can-i-create-a-mathematically-correct-arc-circular-segment
+
+        h = 0.1 # 弦高
+        l = 1   # 弦长
+        segments = 8    # 折线细分数量31
+        # 计算圆弧半径
+        r = (l**2 + h**2 * 4) / (h * 8)   # 相交弦定理，参考前述链接
+        # 夹角，从两个弦端点分别到圆心的夹角
+        angle = 2 * math.asin(l/2/r)
+
+        if l <= 2 * r :
+            # 绘制新对象
+            mesh = bpy.data.meshes.new("Arc")
+            bm = bmesh.new()
+            # 第一个点，Y向半径R长度
+            v = bm.verts.new((0, r, 0))
+            # 旋转到弦的起点
+            bmesh.ops.rotate(
+                bm, verts=[v], matrix=Matrix.Rotation(angle/2, 3, 'Z'))
+            # 旋转分布segments步长到弦终点
+            bmesh.ops.spin(
+                bm,
+                geom=[v],
+                axis=(0, 0, 1),
+                steps=segments,
+                angle=-angle,
+            )
+            # 将弦的起点/终点移到X坐标轴上
+            for v in bm.verts:
+                v.co.y -= r-h
+                v.select = True
+            # 回填到mesh中
+            bm.to_mesh(mesh)
+            # add the mesh as an object into the scene with this utility module
+            from bpy_extras import object_utils
+            object_utils.object_data_add(context, mesh, operator=self)
 
         bpy.ops.object.select_all(action='DESELECT')
         return {'FINISHED'}
