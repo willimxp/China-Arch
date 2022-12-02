@@ -92,7 +92,6 @@ def getCollection(context:bpy.types.Context, name:str, isRedraw:bool):
     else:
         if isRedraw :
             # 清空collection，每次重绘
-            print("PP: Clear collection " + coll_name)
             for obj in coll.objects: 
                 bpy.data.objects.remove(obj)
             # 强制关闭目录隐藏属性，防止失焦
@@ -112,6 +111,14 @@ def getCollection(context:bpy.types.Context, name:str, isRedraw:bool):
 def getVectorDistance(point1: Vector, point2: Vector) -> float:
     """Calculate distance between two points.""" 
     return (point2 - point1).length
+
+def showVector(context,root_obj,point: Vector) -> object :
+    bpy.ops.mesh.primitive_cube_add(size=0.3,location=point)
+    cube = context.active_object
+    cube.parent = root_obj
+    cube.name = '定位点'
+    return cube
+
 
 # 根据基本参数，构建建筑体
 class CHINARCH_OT_build_piller(bpy.types.Operator, AddObjectHelper):
@@ -208,8 +215,6 @@ class CHINARCH_OT_build_piller(bpy.types.Operator, AddObjectHelper):
         piller_Z = 4.0      # 柱子多高
         piller_source = dataset.piller_source # 关联的柱子对象
         # 是否用户有自定义柱子？
-        print("PP: Piller_source=" + piller_source)
-
         if piller_source == '':
             # 默认创建简单柱子
             bpy.ops.mesh.primitive_cylinder_add(
@@ -484,6 +489,7 @@ class CHINARCH_OT_build_puzuo(bpy.types.Operator):
     bl_label = "构建铺作"
 
     def execute(self, context): 
+        print("PP: Build puzuo")
         # 从data中读取用户通过Panel输入的值
         dataset : data.CHINARCH_scene_data = \
             context.scene.chinarch_data
@@ -666,6 +672,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             bpy.ops.chinarch.buildpuzuo()
             # 将焦点重新聚到屋顶层
             root_coll = getCollection(context,"ca屋顶层",True)          
+        print("PP: Build roof")
 
         # 2、创建根对象（empty）===========================================================
         roof_base = dataset.roof_base   # 屋顶起始高度，撩风槫中点
@@ -805,7 +812,8 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                     
                     # 一、计算前后檐椽子参数
                     # 默认采用“乱搭头”连接上下椽架
-                    # 保证檐椽坐中，相临椽架移半椽
+                    # 这里采用了檐椽坐中的做法，相临椽架移半椽
+                    # todo：实际工程中常见椽当坐中（双数椽），后续可以修改
                     if n%2 != int(rafter_count/2)%2:   
                         pX = (point_pre[0] + point[0]) /2 - rafterObj.dimensions.y
                     else:
@@ -834,6 +842,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                         width = room_width - rafter_space *2
                     else :
                         length = getVectorDistance(Vector(point),Vector(point_pre)) + rafter_extend
+                        width = hill_width - hill_extend/2 # 比hill_width略短，以免椽子在边缘悬空
 
                     # 填入list列表
                     rafterList.append((pX,pY,pZ,0,rotaion_y,90,length,width))
@@ -876,7 +885,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                 # Location
                 rafterCopyObj = chinarchCopy(
                     sourceObj= rafterObj,
-                    name="椽子",
+                    name="正身椽",
                     locX = rafter[0], locY = rafter[1], locZ = rafter[2],
                     parentObj=root_obj
                 )
@@ -918,27 +927,51 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
 
             varChuChong = dataset.chong # 默认出冲3椽
             l_ChuChong = rafterObj.dimensions.y * varChuChong
-            # 平面坐标=柱头+出檐+出冲
-            cb_x = room_width/2 + roof_extend + eave_extend + rafter_extend + l_ChuChong
-            cb_y = room_length/2 + roof_extend + eave_extend + rafter_extend + l_ChuChong
-
             varQiQiao = dataset.qiqiao   # 默认起翘4椽
             l_QiQiao = rafterObj.dimensions.y * varQiQiao
-            # 基于正身椽定位
+           
+            # 正身椽数据
+            zhengshenchuan_x = rafterList[-1][0]
+            zhengshenchuan_y = rafterList[-1][1]
             zhengshenchuan_z = rafterList[-1][2]
             zhengshenchuan_rotation = rafterList[-1][4]
             zhengshenchuan_length = rafterList[-1][6]
-            # 根据斜率求直角边
+            # 正身椽尾坐标
             zhengshenchuan_endz = zhengshenchuan_z - \
                 zhengshenchuan_length/2 * math.sin(math.radians(zhengshenchuan_rotation))
-            cb_z = zhengshenchuan_endz + l_QiQiao
-            cb_z -= cbObj.dimensions.z/2 # 椽对齐到大角梁上皮，准确的还应该加半椽
+            zhengshenchuan_endx = zhengshenchuan_x + \
+                zhengshenchuan_length/2 * math.cos(math.radians(zhengshenchuan_rotation))
+            zhengshenchuan_endy = zhengshenchuan_y 
+            # showVector(context,root_obj,pFR_end)
 
             # 角梁尾置于下平槫交点（采用扣金做法，中点重合）
             # 另有压金做法，但起翘幅度会压低
             cb_end_x = room_width/2 - rafter_space
             cb_end_y = room_length/2 - rafter_space
-            cb_end_z = rafter_pos[-2][2]    # 倒数第二个举折点            
+            cb_end_z = rafter_pos[-2][2]    # 倒数第二个举折点       
+            showVector(context,root_obj,Vector((cb_end_x,cb_end_y,cb_end_z)))  
+
+            # 角梁压住撩风槫的交点
+            pTuan_x = room_width/2 + roof_extend
+            pTuan_y = room_length/2 + roof_extend
+            pTuan_z = tuanObj.dimensions.y/2 + cbObj.dimensions.y/2
+            showVector(context,root_obj,Vector((pTuan_x,pTuan_y,pTuan_z)))
+            
+            # 角梁头坐标
+            # 水平坐标=柱头+出檐+出冲
+            cb_x = room_width/2 + roof_extend + eave_extend + rafter_extend + l_ChuChong
+            cb_y = room_length/2 + roof_extend + eave_extend + rafter_extend + l_ChuChong
+            # 角梁头高度通过上平槫交点到撩风槫交点，向外延伸，夹角相同，所以高度差与出跳成正比
+            # 压住撩风槫的交点高度 = 上平槫z - 撩风槫z + 槫半径 + 角梁半径
+            z1 = cb_end_z - pTuan_z
+            x1 = rafter_space + roof_extend  # 上平槫x - 撩风槫x
+            x2 = eave_extend + rafter_extend + l_ChuChong # 角梁头x - 撩风槫x
+            z2 = z1 * x2 / x1
+            cb_z = cb_end_z - z1 - z2
+            showVector(context,root_obj,Vector((cb_x,cb_y,cb_z)))
+            # 老算法，不应该与起翘有关
+            # cb_z = zhengshenchuan_endz + l_QiQiao
+            # cb_z -= cbObj.dimensions.z/2 # 椽对齐到大角梁上皮，准确的还应该加半椽
             
             # 从下平槫交点 - 角梁顶点，放置角梁
             cbCopyObj = chinarchCopy(
@@ -982,7 +1015,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         curve.parent = root_obj
         curve.data.use_fill_caps = True 
         curve.data.bevel_mode = 'PROFILE'   #定义曲线横截面为方形
-        curve.data.bevel_depth = curve_size       
+        curve.data.bevel_depth = curve_size
         
         # Set handles to desired handle type.
         bez_points:bpy.types.SplinePoints = curve.data.splines[0].bezier_points
@@ -1068,7 +1101,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         bez_points[1].co = pEnd
         bez_points[1].handle_left = pEnd
         bez_points[1].handle_right = pEnd
-        # 延伸只中线
+        # 延伸至中线
         bpy.ops.object.mode_set(mode='EDIT') # Edit mode   
         bpy.ops.curve.select_all(action='DESELECT')
         bpy.ops.curve.de_select_last()
@@ -1084,7 +1117,8 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         ####################################
         # 7、布置翼角椽，采用放射线布局Corner Rafter，缩写为CR
         # 翼角椽根数
-        cr_count = round((cb_x - cb_end_x) / (rafterObj.dimensions.y + rafterObj.dimensions.y))
+        # todo：工程上会采用奇数个翼角椽，采用“宜密不宜疏”原则，这里暂时没有这么处理，感觉已经很密了。
+        cr_count = round((cb_x - cb_end_x) / (rafterObj.dimensions.y*rafter_gap_fb))
         # 在小连檐上定位
         curve = context.scene.objects.get("前后檐小连檐")
         bez_points:bpy.types.SplinePoints = curve.data.splines[0].bezier_points
@@ -1100,7 +1134,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             point = points_on_curve[n]
             # 翼角椽头压在小连檐下方
             cr_start = Vector((point[0],
-                point[1]+rafter_extend, # 向外延伸椽头
+                point[1]+rafter_extend+0.05, # 向外延伸椽头，修正0.05误差，不知道哪里来的误差
                 point[2]-curve_offset   # 从小连檐位置向下
             ))
             # 翼角椽尾在角梁尾，并与正身椽尾对齐
@@ -1146,12 +1180,107 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             mod.use_axis[0] = True
             mod.use_axis[1] = True
             mod.mirror_object = root_obj
-        
         redrawViewport()
 
-        
+        ######################
+        # 8、布置飞椽Flying Rafter，缩写为FR   
+        # 工程一般默认0.6倍檐出，用户可自定义
+        fr_extend = dataset.feizi_extend
+        fr_lift = 0.10   # 正身飞檐头相对正身椽的起翘高度，只在做法中提到“一飞二尾半到三尾”的说法
 
+        # 8.1 布置两厦正身飞椽  
+        # 8.1.1 定飞椽尾坐标(基于之前已计算右厦的椽头坐标)
+        # X从正身椽出跳
+        pFR_end_x = zhengshenchuan_endx + fr_extend
+        # Y与正身椽对齐
+        pFR_end_y = zhengshenchuan_endy
+        # 飞椽尾高度基于正身椽头定位
+        pFR_end_z = zhengshenchuan_endz + fr_lift
+        pFR_end = Vector((pFR_end_x,pFR_end_y,pFR_end_z))
+        # show it 
+        #showVector(context,root_obj,pFR_end)
+
+        # 8.1.2 定飞椽头坐标
+        # 近似的取椽子的几何中心，没啥依据，看着较为接近
+        pFR_start = Vector((zhengshenchuan_x,zhengshenchuan_y,zhengshenchuan_z))
+        #showVector(context,root_obj,pFR_start)
+
+        # 8.1.3 布置两厦正身飞椽
+        frObj = context.scene.objects.get("飞子")
+        pFR_origin = (pFR_start + pFR_end)/2
+        FRCopyObj = chinarchCopy(
+            sourceObj= frObj,
+            name="正身飞椽-两厦",
+            locX = pFR_origin[0], 
+            locY = pFR_origin[1],
+            locZ = pFR_origin[2],
+            parentObj=root_obj
+        )
+        # 求Y旋转角度
+        axis = Vector((1,0,0))
+        vec = pFR_end - pFR_start
+        FRCopyObj.rotation_euler.y = axis.angle(vec)
+        # 求length
+        FRCopyObj.dimensions.x = getVectorDistance(pFR_end,pFR_start)
+        # Array modifier
+        arrayCount = round((room_length-rafter_space*2)/rafter_gap_lr/2/rafterObj.dimensions.y)+1 # 与正身椽的数量相同
+        arrayFactor = (room_length-rafter_space*2)/2/(arrayCount-1)/FRCopyObj.dimensions.y
+        mod = FRCopyObj.modifiers.new(name='array', type='ARRAY')
+        mod.count = arrayCount
+        mod.relative_offset_displace[0] = 0
+        mod.relative_offset_displace[1] = arrayFactor
+        # Mirror modifier
+        mod = FRCopyObj.modifiers.new(name='mirror', type='MIRROR')
+        mod.use_axis[0] = True
+        mod.use_axis[1] = True
+        mod.mirror_object = root_obj
+
+        # 8.2 布置前后檐飞椽
+        # 飞椽尾
+        pFR_end2_x = pFR_end_y
+        pFR_end2_y = pFR_end_x - room_width/2 + room_length/2
+        pFR_end2_z = pFR_end_z
+        pFR_end2 = Vector((pFR_end2_x,pFR_end2_y,pFR_end2_z))
+        # 飞椽头
+        pFR_start2_x = pFR_start[1]
+        pFR_start2_y = pFR_start[0] - room_width/2 + room_length/2
+        pFR_start2_z = pFR_start[2]
+        pFR_start2 = Vector((pFR_start2_x,pFR_start2_y,pFR_start2_z))
+        pFR_origin2 = (pFR_start2 + pFR_end2)/2
+        FRCopyObj2 = chinarchCopy(
+            sourceObj= frObj,
+            name="正身飞椽-前后檐",
+            locX = pFR_origin2[0], 
+            locY = pFR_origin2[1],
+            locZ = pFR_origin2[2],
+            parentObj=root_obj
+        )
+        FRCopyObj2.rotation_euler.y = FRCopyObj.rotation_euler.y
+        FRCopyObj2.rotation_euler.z = math.radians(90)
+        FRCopyObj2.dimensions.x = getVectorDistance(pFR_end2,pFR_start2)
+        # Array modifier
+        arrayCount = round((room_width-rafter_space*2)/rafter_gap_fb/2/rafterObj.dimensions.y)+1 # 与正身椽的数量相同
+        arrayFactor = (room_width-rafter_space*2)/2/(arrayCount-1)/FRCopyObj2.dimensions.y
+        mod = FRCopyObj2.modifiers.new(name='array', type='ARRAY')
+        mod.count = arrayCount
+        mod.relative_offset_displace[0] = 0
+        mod.relative_offset_displace[1] = arrayFactor
+        # Mirror modifier
+        mod = FRCopyObj2.modifiers.new(name='mirror', type='MIRROR')
+        mod.use_axis[0] = True
+        mod.use_axis[1] = True
+        mod.mirror_object = root_obj
+
+
+        # 8.3 绘制大连檐
+
+        # 8.4 布置翼角飞椽Corner Flying Rafter,缩写为CFR
+
+
+        ########################
+        # 完成
         bpy.ops.object.select_all(action='DESELECT')
+        print("PP: FINISHED")
         return {'FINISHED'}
 
 # 保存柱网
