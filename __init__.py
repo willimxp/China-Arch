@@ -17,7 +17,7 @@
 
 import bpy
 from . import panel
-from . import operator
+from . import ca_operator
 from . import data
 
 bl_info = {
@@ -40,12 +40,12 @@ classes = (
     panel.CHINAARCH_PT_panel_roof,
     panel.CHINAARCH_PT_panel_property,
 
-    operator.CHINARCH_OT_build_piller,
-    operator.CHINARCH_OT_build_puzuo,
-    operator.CHINARCH_OT_build_roof,
-    operator.CHINARCH_OT_piller_net_save,
-    operator.CHINARCH_OT_piller_net_reset,
-    operator.CHINARCH_OT_level_scale
+    ca_operator.CHINARCH_OT_build_piller,
+    ca_operator.CHINARCH_OT_build_puzuo,
+    ca_operator.CHINARCH_OT_build_roof,
+    ca_operator.CHINARCH_OT_piller_net_save,
+    ca_operator.CHINARCH_OT_piller_net_reset,
+    ca_operator.CHINARCH_OT_level_scale
     )
 
 def register():   

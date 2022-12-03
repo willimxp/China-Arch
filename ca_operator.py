@@ -927,8 +927,6 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
 
             varChuChong = dataset.chong # 默认出冲3椽
             l_ChuChong = rafterObj.dimensions.y * varChuChong
-            varQiQiao = dataset.qiqiao   # 默认起翘4椽
-            l_QiQiao = rafterObj.dimensions.y * varQiQiao
            
             # 正身椽数据
             zhengshenchuan_x = rafterList[-1][0]
@@ -936,12 +934,12 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             zhengshenchuan_z = rafterList[-1][2]
             zhengshenchuan_rotation = rafterList[-1][4]
             zhengshenchuan_length = rafterList[-1][6]
-            # 正身椽尾坐标
-            zhengshenchuan_endz = zhengshenchuan_z - \
+            # 正身椽头坐标
+            zhengshenchuan_startz = zhengshenchuan_z - \
                 zhengshenchuan_length/2 * math.sin(math.radians(zhengshenchuan_rotation))
-            zhengshenchuan_endx = zhengshenchuan_x + \
+            zhengshenchuan_startx = zhengshenchuan_x + \
                 zhengshenchuan_length/2 * math.cos(math.radians(zhengshenchuan_rotation))
-            zhengshenchuan_endy = zhengshenchuan_y 
+            zhengshenchuan_starty = zhengshenchuan_y 
             # showVector(context,root_obj,pFR_end)
 
             # 角梁尾置于下平槫交点（采用扣金做法，中点重合）
@@ -949,13 +947,13 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             cb_end_x = room_width/2 - rafter_space
             cb_end_y = room_length/2 - rafter_space
             cb_end_z = rafter_pos[-2][2]    # 倒数第二个举折点       
-            showVector(context,root_obj,Vector((cb_end_x,cb_end_y,cb_end_z)))  
+            #showVector(context,root_obj,Vector((cb_end_x,cb_end_y,cb_end_z)))  
 
             # 角梁压住撩风槫的交点
             pTuan_x = room_width/2 + roof_extend
             pTuan_y = room_length/2 + roof_extend
             pTuan_z = tuanObj.dimensions.y/2 + cbObj.dimensions.y/2
-            showVector(context,root_obj,Vector((pTuan_x,pTuan_y,pTuan_z)))
+            #showVector(context,root_obj,Vector((pTuan_x,pTuan_y,pTuan_z)))
             
             # 角梁头坐标
             # 水平坐标=柱头+出檐+出冲
@@ -968,9 +966,9 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             x2 = eave_extend + rafter_extend + l_ChuChong # 角梁头x - 撩风槫x
             z2 = z1 * x2 / x1
             cb_z = cb_end_z - z1 - z2
-            showVector(context,root_obj,Vector((cb_x,cb_y,cb_z)))
+            #showVector(context,root_obj,Vector((cb_x,cb_y,cb_z)))
             # 老算法，不应该与起翘有关
-            # cb_z = zhengshenchuan_endz + l_QiQiao
+            # cb_z = zhengshenchuan_startz + l_QiQiao
             # cb_z -= cbObj.dimensions.z/2 # 椽对齐到大角梁上皮，准确的还应该加半椽
             
             # 从下平槫交点 - 角梁顶点，放置角梁
@@ -1033,7 +1031,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         # 起翘点在正身椽尾
         pEnd_x = cb_end_x # 角梁尾，即下平槫交点，也是起翘点
         pEnd_y = cb_y - l_ChuChong - rafter_extend   
-        pEnd_z = zhengshenchuan_endz + curve_offset   #小连檐压于椽上方
+        pEnd_z = zhengshenchuan_startz + curve_offset   #小连檐压于椽上方
         pEnd = Vector((pEnd_x, pEnd_y, pEnd_z))
         # 曲率控制点，在角梁交点处，控制出冲和起翘的弧度
         pHandle_x = (pStart_x + pEnd_x)/2
@@ -1088,7 +1086,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         # 起翘点在正身椽尾
         pEnd_x = cb_x-l_ChuChong-rafter_extend
         pEnd_y = cb_end_y   # 角梁尾，即下平槫交点，也是起翘点
-        pEnd_z = zhengshenchuan_endz + curve_offset   #小连檐压于椽上方
+        pEnd_z = zhengshenchuan_startz + curve_offset   #小连檐压于椽上方
         pEnd = Vector((pEnd_x, pEnd_y, pEnd_z))
         # 曲率控制点，在角梁交点处，控制出冲和起翘的弧度
         pHandle_x = pEnd_x
@@ -1189,21 +1187,21 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         fr_lift = 0.10   # 正身飞檐头相对正身椽的起翘高度，只在做法中提到“一飞二尾半到三尾”的说法
 
         # 8.1 布置两厦正身飞椽  
-        # 8.1.1 定飞椽尾坐标(基于之前已计算右厦的椽头坐标)
+        # 8.1.1 定飞椽头坐标(基于之前已计算右厦的椽头坐标)
         # X从正身椽出跳
-        pFR_end_x = zhengshenchuan_endx + fr_extend
+        pFR_start_x = zhengshenchuan_startx + fr_extend
         # Y与正身椽对齐
-        pFR_end_y = zhengshenchuan_endy
+        pFR_start_y = zhengshenchuan_starty
         # 飞椽尾高度基于正身椽头定位
-        pFR_end_z = zhengshenchuan_endz + fr_lift
-        pFR_end = Vector((pFR_end_x,pFR_end_y,pFR_end_z))
+        pFR_start_z = zhengshenchuan_startz + fr_lift
+        pFR_start = Vector((pFR_start_x,pFR_start_y,pFR_start_z))
         # show it 
-        #showVector(context,root_obj,pFR_end)
+        #showVector(context,root_obj,pFR_start)
 
         # 8.1.2 定飞椽头坐标
         # 近似的取椽子的几何中心，没啥依据，看着较为接近
-        pFR_start = Vector((zhengshenchuan_x,zhengshenchuan_y,zhengshenchuan_z))
-        #showVector(context,root_obj,pFR_start)
+        pFR_end = Vector((zhengshenchuan_x,zhengshenchuan_y,zhengshenchuan_z))
+        #showVector(context,root_obj,pFR_end)
 
         # 8.1.3 布置两厦正身飞椽
         frObj = context.scene.objects.get("飞子")
@@ -1218,7 +1216,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         )
         # 求Y旋转角度
         axis = Vector((1,0,0))
-        vec = pFR_end - pFR_start
+        vec = pFR_start - pFR_end 
         FRCopyObj.rotation_euler.y = axis.angle(vec)
         # 求length
         FRCopyObj.dimensions.x = getVectorDistance(pFR_end,pFR_start)
@@ -1236,16 +1234,16 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         mod.mirror_object = root_obj
 
         # 8.2 布置前后檐飞椽
-        # 飞椽尾
-        pFR_end2_x = pFR_end_y
-        pFR_end2_y = pFR_end_x - room_width/2 + room_length/2
-        pFR_end2_z = pFR_end_z
-        pFR_end2 = Vector((pFR_end2_x,pFR_end2_y,pFR_end2_z))
         # 飞椽头
-        pFR_start2_x = pFR_start[1]
-        pFR_start2_y = pFR_start[0] - room_width/2 + room_length/2
-        pFR_start2_z = pFR_start[2]
+        pFR_start2_x = pFR_start_y
+        pFR_start2_y = pFR_start_x - room_width/2 + room_length/2
+        pFR_start2_z = pFR_start_z
         pFR_start2 = Vector((pFR_start2_x,pFR_start2_y,pFR_start2_z))
+        # 飞椽尾
+        pFR_end2_x = pFR_end[1]
+        pFR_end2_y = pFR_end[0] - room_width/2 + room_length/2
+        pFR_end2_z = pFR_end[2]
+        pFR_end2 = Vector((pFR_end2_x,pFR_end2_y,pFR_end2_z))
         pFR_origin2 = (pFR_start2 + pFR_end2)/2
         FRCopyObj2 = chinarchCopy(
             sourceObj= frObj,
@@ -1271,10 +1269,103 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         mod.use_axis[1] = True
         mod.mirror_object = root_obj
 
+        # 8.3 定位子角梁Child Corner Beam，缩写ccb
+        # 三点定位，子角梁头、子角梁转折点、子角梁尾        
+        # 子角梁头，根据从正身飞椽头计算“冲三翘四”
+        varChuChong = dataset.chong # 默认出冲3椽
+        l_ChuChong = rafterObj.dimensions.y * varChuChong
+        varQiQiao = dataset.qiqiao   # 默认起翘4椽
+        l_QiQiao = rafterObj.dimensions.y * varQiQiao
+        pCCB_start_x = pFR_start_x + l_ChuChong #两厦飞头
+        pCCB_start_y = pFR_start2_y + l_ChuChong
+        pCCB_start_z = pFR_start_z + l_QiQiao
+        vCCB_start = Vector((pCCB_start_x,pCCB_start_y,pCCB_start_z))
+        #showVector(context,root_obj,vCCB_start)
+        # 子角梁转折点，近似落于老角梁头
+        pCCB_bend_x = cb_x - cbObj.dimensions.z/4
+        pCCB_bend_y = cb_y - cbObj.dimensions.z/4
+        pCCB_bend_z = cb_z + cbObj.dimensions.z -0.1
+        vCCB_bend = Vector((pCCB_bend_x,pCCB_bend_y,pCCB_bend_z))
+        #showVector(context,root_obj,vCCB_bend)
+        # 子角梁尾，近似落于老角梁尾
+        pCCB_end_x = cb_end_x
+        pCCB_end_y = cb_end_y
+        pCCB_end_z = cb_end_z
+        vCCB_end = Vector((pCCB_end_x,pCCB_end_y,pCCB_end_z))
+        #showVector(context,root_obj,vCCB_end)
+        
+        # 放置子角梁翘头
+        # 暂时与老角梁使用相同对象，后续可以单独制作
+        if dataset.CornerBeam_source != '' : 
+            cbObj:bpy.types.Object = context.scene.objects.get(dataset.CornerBeam_source)
+        ccbStartObj = chinarchCopy(
+                    sourceObj= cbObj,
+                    name="仔角梁翘头",
+                    locX = (pCCB_start_x + pCCB_bend_x)/2, 
+                    locY = (pCCB_start_y + pCCB_bend_y)/2,
+                    locZ = (pCCB_start_z + pCCB_bend_z)/2,
+                    parentObj=root_obj
+            )
+        ccbStartObj.dimensions.x = getVectorDistance(vCCB_start,vCCB_bend)
+        # 计算夹角
+        axis = Vector((0,0,1))
+        vec = vCCB_start - vCCB_bend
+        ccbStartObj.rotation_euler.y = axis.angle(vec) - math.radians(90)
+        ccbStartObj.rotation_euler.z = math.radians(45)
+        # Mirror modifier
+        mod = ccbStartObj.modifiers.new(name='mirror', type='MIRROR')
+        mod.use_axis[0] = True
+        mod.use_axis[1] = True
+        mod.mirror_object = root_obj
 
-        # 8.3 绘制大连檐
+        # 放置子角梁后尾
+        ccbEndObj = chinarchCopy(
+                    sourceObj= cbObj,
+                    name="仔角梁后尾",
+                    locX = (pCCB_end_x + pCCB_bend_x)/2, 
+                    locY = (pCCB_end_y + pCCB_bend_y)/2,
+                    locZ = (pCCB_end_z + pCCB_bend_z)/2,
+                    parentObj=root_obj
+            )
+        ccbEndObj.dimensions.x = getVectorDistance(vCCB_end,vCCB_bend)+0.2
+        # 计算夹角
+        axis = Vector((0,0,1))
+        vec = vCCB_bend - vCCB_end
+        ccbEndObj.rotation_euler.y = axis.angle(vec) - math.radians(90)
+        ccbEndObj.rotation_euler.z = math.radians(45)
+        # Mirror modifier
+        mod = ccbEndObj.modifiers.new(name='mirror', type='MIRROR')
+        mod.use_axis[0] = True
+        mod.use_axis[1] = True
+        mod.mirror_object = root_obj
 
-        # 8.4 布置翼角飞椽Corner Flying Rafter,缩写为CFR
+
+        # # 8.4 绘制大连檐curveF
+        # curveF_size=0.08 #小连檐横截面半径
+        # curveF_offset = 0.18 # 小连檐与椽子上下位移
+        # curveF_tilt = 60 # 小连檐倾斜角度
+
+        # # 构造前后檐大连檐curveF
+        # bpy.ops.curve.primitive_bezier_curve_add(enter_editmode=False)
+        # curveF = context.active_object
+        # curveF.name = '前后檐大连檐'
+        # curveF.parent = root_obj
+        # curveF.data.use_fill_caps = True 
+        # curveF.data.bevel_mode = 'PROFILE'   #定义曲线横截面为方形
+        # curveF.data.bevel_depth = curveF_size
+        # # Set handles to desired handle type.
+        # bez_points:bpy.types.SplinePoints = curveF.data.splines[0].bezier_points
+        # bez_point:bpy.types.SplinePoint
+        # for bez_point in bez_points:
+        #     bez_point.handle_left_type = 'FREE'
+        #     bez_point.handle_right_type = 'FREE'
+        #     bez_point.tilt = math.radians(curveF_tilt)
+        
+
+
+
+
+        # 8.x 布置翼角飞椽Corner Flying Rafter,缩写为CFR
 
 
         ########################
