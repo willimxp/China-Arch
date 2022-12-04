@@ -881,12 +881,12 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             # 前后檐椽当
             count = int((room_width-rafter_space*2)/rafter_d/2) #舍去小数位，避免穿模
             if count%2 == 1 : count-=1    #取偶数，否则后续无法镜像左右分布
-            rafter_gap_fb = (room_width - rafter_space*2)/count/rafter_d #单位为n椽径，便于后续array使用
+            rafter_gap_fb = (room_width - rafter_space*2)/count
             # 两厦椽当
             count = int((room_length-rafter_space*2)/rafter_d/2)
             if count>0 : # 2椽的直坡
                 if count%2 == 1 : count-=1    #取偶数，否则后续无法镜像左右分布
-                rafter_gap_lr = (room_length - rafter_space*2)/count/rafter_d #单位为n椽径，便于后续array使用
+                rafter_gap_lr = (room_length - rafter_space*2)/count
 
             # 根据构造的椽子列表，布椽
             for n in range(len(rafterList)) :
@@ -913,13 +913,12 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                     rafter_gap = rafter_gap_lr
                 else:
                     rafter_gap = rafter_gap_fb
-                arrayCount = round(rafter[7]/rafter_gap/rafter_d/2)+1 # 四舍五入取整
-                # if arrayCount%2 == 1 : arrayCount+=1    #取偶数
+                arrayCount = round(rafter[7]/rafter_gap/2)+1 # 四舍五入取整
                 mod = rafterCopyObj.modifiers.new(name='array', type='ARRAY')
                 mod.count = arrayCount
-                mod.relative_offset_displace[0] = 0
-                mod.relative_offset_displace[1] = rafter_gap
-
+                mod.use_relative_offset = False
+                mod.use_constant_offset = True
+                mod.constant_offset_displace = (0,rafter_gap,0)
                 # Mirror modifier
                 mod = rafterCopyObj.modifiers.new(name='mirror', type='MIRROR')
                 mod.use_axis[0] = True
@@ -1126,7 +1125,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         # 7、布置翼角椽，采用放射线布局Corner Rafter，缩写为CR
         # 翼角椽根数
         # todo：工程上会采用奇数个翼角椽，采用“宜密不宜疏”原则，这里暂时没有这么处理，感觉已经很密了。
-        cr_count = round((cb_x - cb_end_x) / (rafterObj.dimensions.y*rafter_gap_fb))
+        cr_count = round((cb_x - cb_end_x) / rafter_gap_fb)
         # 在小连檐上定位
         curve = context.scene.objects.get("前后檐小连檐")
         bez_points:bpy.types.SplinePoints = curve.data.splines[0].bezier_points
@@ -1228,12 +1227,13 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         # 求length
         FRCopyObj.dimensions.x = getVectorDistance(pFR_end,pFR_start)
         # Array modifier
-        arrayCount = round((room_length-rafter_space*2)/rafter_gap_lr/2/rafterObj.dimensions.y)+1 # 与正身椽的数量相同
-        arrayFactor = (room_length-rafter_space*2)/2/(arrayCount-1)/FRCopyObj.dimensions.y
+        arrayCount = round((room_length-rafter_space*2)/rafter_gap_lr/2)+1 # 与正身椽的数量相同
+        arrayFactor = (room_length-rafter_space*2)/2/(arrayCount-1)
         mod = FRCopyObj.modifiers.new(name='array', type='ARRAY')
         mod.count = arrayCount
-        mod.relative_offset_displace[0] = 0
-        mod.relative_offset_displace[1] = arrayFactor
+        mod.use_relative_offset = False
+        mod.use_constant_offset = True
+        mod.constant_offset_displace = (0,arrayFactor,0)
         # Mirror modifier
         mod = FRCopyObj.modifiers.new(name='mirror', type='MIRROR')
         mod.use_axis[0] = True
@@ -1264,12 +1264,13 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         FRCopyObj2.rotation_euler.z = math.radians(90)
         FRCopyObj2.dimensions.x = getVectorDistance(pFR_end2,pFR_start2)
         # Array modifier
-        arrayCount = round((room_width-rafter_space*2)/rafter_gap_fb/2/rafterObj.dimensions.y)+1 # 与正身椽的数量相同
-        arrayFactor = (room_width-rafter_space*2)/2/(arrayCount-1)/FRCopyObj2.dimensions.y
+        arrayCount = round((room_width-rafter_space*2)/rafter_gap_fb/2)+1 # 与正身椽的数量相同
+        arrayFactor = (room_width-rafter_space*2)/2/(arrayCount-1)
         mod = FRCopyObj2.modifiers.new(name='array', type='ARRAY')
         mod.count = arrayCount
-        mod.relative_offset_displace[0] = 0
-        mod.relative_offset_displace[1] = arrayFactor
+        mod.use_relative_offset = False
+        mod.use_constant_offset = True
+        mod.constant_offset_displace = (0,arrayFactor,0)
         # Mirror modifier
         mod = FRCopyObj2.modifiers.new(name='mirror', type='MIRROR')
         mod.use_axis[0] = True
