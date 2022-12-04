@@ -932,7 +932,6 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         # 5、计算老角梁Corner Beam，缩写为CB
         if dataset.CornerBeam_source != '' : 
             cbObj:bpy.types.Object = context.scene.objects.get(dataset.CornerBeam_source)
-
             varChuChong = dataset.chong # 默认出冲3椽
             l_ChuChong = rafterObj.dimensions.y * varChuChong
            
@@ -954,56 +953,66 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             # 另有压金做法，但起翘幅度会压低
             cb_end_x = room_width/2 - rafter_space
             cb_end_y = room_length/2 - rafter_space
-            cb_end_z = rafter_pos[-2][2]    # 倒数第二个举折点       
+            cb_end_z = rafter_pos[-2][2]    # 倒数第二个举折点 
+            cb_end = Vector((cb_end_x,cb_end_y,cb_end_z))    
             #showVector(context,root_obj,Vector((cb_end_x,cb_end_y,cb_end_z)))  
 
-            # 角梁压住撩风槫的交点
-            pTuan_x = room_width/2 + roof_extend
-            pTuan_y = room_length/2 + roof_extend
-            pTuan_z = tuanObj.dimensions.y/2 + cbObj.dimensions.y/2
-            #showVector(context,root_obj,Vector((pTuan_x,pTuan_y,pTuan_z)))
-            
             # 角梁头坐标
             # 水平坐标=柱头+出檐+出冲
-            cb_x = room_width/2 + roof_extend + eave_extend + rafter_extend + l_ChuChong
-            cb_y = room_length/2 + roof_extend + eave_extend + rafter_extend + l_ChuChong
+            cb_start_x = room_width/2 + roof_extend + eave_extend + rafter_extend + l_ChuChong
+            cb_start_y = room_length/2 + roof_extend + eave_extend + rafter_extend + l_ChuChong
             # 角梁头高度通过上平槫交点到撩风槫交点，向外延伸，夹角相同，所以高度差与出跳成正比
             # 压住撩风槫的交点高度 = 上平槫z - 撩风槫z + 槫半径 + 角梁半径
+            pTuan_z = tuanObj.dimensions.y/2 + cbObj.dimensions.y/2
             z1 = cb_end_z - pTuan_z
             x1 = rafter_space + roof_extend  # 上平槫x - 撩风槫x
             x2 = eave_extend + rafter_extend + l_ChuChong # 角梁头x - 撩风槫x
             z2 = z1 * x2 / x1
-            cb_z = cb_end_z - z1 - z2
-            #showVector(context,root_obj,Vector((cb_x,cb_y,cb_z)))
-            # 老算法，不应该与起翘有关
-            # cb_z = zhengshenchuan_startz + l_QiQiao
-            # cb_z -= cbObj.dimensions.z/2 # 椽对齐到大角梁上皮，准确的还应该加半椽
+            cb_start_z = cb_end_z - z1 - z2
+            cb_start = Vector((cb_start_x,cb_start_y,cb_start_z))
+            #showVector(context,root_obj,Vector((cb_start_x,cb_start_y,cb_start_z)))
             
             # 从下平槫交点 - 角梁顶点，放置角梁
             cbCopyObj = chinarchCopy(
                     sourceObj= cbObj,
-                    name="角梁",
-                    locX = (cb_x + cb_end_x)/2, 
-                    locY = (cb_y + cb_end_y)/2,
-                    locZ = (cb_z + cb_end_z)/2,
+                    name="老角梁",
+                    locX = (cb_start_x + cb_end_x)/2, 
+                    locY = (cb_start_y + cb_end_y)/2,
+                    locZ = (cb_start_z + cb_end_z)/2,
                     parentObj=root_obj
                 )
-            cbCopyObj.dimensions.x = getVectorDistance(Vector((cb_x,cb_y,cb_z)),
-                Vector((cb_end_x,cb_end_y,cb_end_z))
-                )
-
-            # 根据起止点计算旋转角度
-            # https://blender.stackexchange.com/questions/194549/find-angles-between-list-of-sorted-vertices-using-vertex-co-angle
-            axis = Vector((0,0,1))
-            vec = Vector((cb_x,cb_y,cb_z)) - Vector((cb_end_x,cb_end_y,cb_end_z))
-            cbCopyObj.rotation_euler.y = axis.angle(vec) - math.radians(90)
-            cbCopyObj.rotation_euler.z = math.radians(45)
-
+            cbCopyObj.dimensions.x = getVectorDistance(cb_start,cb_end)
+            cbCopyObj.rotation_euler = alignToVector(cb_start - cb_end)
             # Mirror modifier
             mod = cbCopyObj.modifiers.new(name='mirror', type='MIRROR')
             mod.use_axis[0] = True
             mod.use_axis[1] = True
             mod.mirror_object = root_obj
+
+            # 6椽以上转2椽，放置续角梁，缩写为cb2
+            if rafter_count >=6 :
+                # 计算与平槫的交点
+                rafter_middle = rafter_pos[-3] # 倒数第三个举折点
+                cb2_end_x = rafter_middle[1] + room_width/2 - room_length/2
+                cb2_end_y = rafter_middle[1]
+                cb2_end_z = rafter_middle[2] + 0.1
+                cb2_end = Vector((cb2_end_x,cb2_end_y,cb2_end_z))
+                # 放置续角梁
+                cbCopy2Obj = chinarchCopy(
+                        sourceObj= cbObj,
+                        name="续角梁",
+                        locX = (cb_end_x+cb2_end_x)/2, 
+                        locY = (cb_end_y+cb2_end_y)/2,
+                        locZ = (cb_end_z+cb2_end_z)/2,
+                        parentObj=root_obj
+                    )
+                cbCopy2Obj.dimensions.x = getVectorDistance(cb_end,cb2_end)
+                cbCopy2Obj.rotation_euler = alignToVector(cb_end - cb2_end)
+                # Mirror modifier
+                mod = cbCopy2Obj.modifiers.new(name='mirror', type='MIRROR')
+                mod.use_axis[0] = True
+                mod.use_axis[1] = True
+                mod.mirror_object = root_obj
 
             hideObj(cbObj)
         redrawViewport()
@@ -1032,13 +1041,13 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             bez_point.tilt = math.radians(curve_tilt)
 
         # 起点与角梁交点,略短，以免穿模
-        pStart_x = cb_x - cbObj.dimensions.y/2 # 内收半角梁宽，避免串模
-        pStart_y = cb_y
-        pStart_z = cb_z + cbObj.dimensions.z/2 - curve_size/2   # 上推到角梁上皮，再下移半个小连檐高度，保持上皮基本接近
+        pStart_x = cb_start_x - cbObj.dimensions.y/2 # 内收半角梁宽，避免串模
+        pStart_y = cb_start_y
+        pStart_z = cb_start_z + cbObj.dimensions.z/2 - curve_size/2   # 上推到角梁上皮，再下移半个小连檐高度，保持上皮基本接近
         pStart = Vector((pStart_x, pStart_y, pStart_z))
         # 起翘点在正身椽尾
         pEnd_x = cb_end_x # 角梁尾，即下平槫交点，也是起翘点
-        pEnd_y = cb_y - l_ChuChong - rafter_extend   
+        pEnd_y = cb_start_y - l_ChuChong - rafter_extend   
         pEnd_z = zhengshenchuan_startz + curve_offset   #小连檐压于椽上方
         pEnd = Vector((pEnd_x, pEnd_y, pEnd_z))
         # 曲率控制点，在角梁交点处，控制出冲和起翘的弧度
@@ -1087,12 +1096,12 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             bez_point.tilt = math.radians(90-curve_tilt)
 
         # 起点与角梁交点,略短，以免穿模
-        pStart_x = cb_x
-        pStart_y = cb_y - cbObj.dimensions.y/2    # 内收半角梁宽，避免串模
-        pStart_z = cb_z + cbObj.dimensions.z/2 - curve_size/2   # 上推到角梁上皮，再下移半个小连檐高度，保持上皮基本接近
+        pStart_x = cb_start_x
+        pStart_y = cb_start_y - cbObj.dimensions.y/2    # 内收半角梁宽，避免串模
+        pStart_z = cb_start_z + cbObj.dimensions.z/2 - curve_size/2   # 上推到角梁上皮，再下移半个小连檐高度，保持上皮基本接近
         pStart = Vector((pStart_x, pStart_y, pStart_z))
         # 起翘点在正身椽尾
-        pEnd_x = cb_x - l_ChuChong - rafter_extend
+        pEnd_x = cb_start_x - l_ChuChong - rafter_extend
         pEnd_y = cb_end_y   # 角梁尾，即下平槫交点，也是起翘点
         pEnd_z = zhengshenchuan_startz + curve_offset   #小连檐压于椽上方
         pEnd = Vector((pEnd_x, pEnd_y, pEnd_z))
@@ -1125,7 +1134,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         # 7、布置翼角椽，采用放射线布局Corner Rafter，缩写为CR
         # 翼角椽根数
         # todo：工程上会采用奇数个翼角椽，采用“宜密不宜疏”原则，这里暂时没有这么处理，感觉已经很密了。
-        cr_count = round((cb_x - cb_end_x) / rafter_gap_fb)
+        cr_count = round((cb_start_x - cb_end_x) / rafter_gap_fb)
         # 在小连檐上定位
         curve = context.scene.objects.get("前后檐小连檐")
         bez_points:bpy.types.SplinePoints = curve.data.splines[0].bezier_points
@@ -1290,9 +1299,9 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         vCCB_start = Vector((pCCB_start_x,pCCB_start_y,pCCB_start_z))
         #showVector(context,root_obj,vCCB_start)
         # 子角梁转折点，近似落于老角梁头
-        pCCB_bend_x = cb_x - cbObj.dimensions.z/4
-        pCCB_bend_y = cb_y - cbObj.dimensions.z/4
-        pCCB_bend_z = cb_z + cbObj.dimensions.z -0.1
+        pCCB_bend_x = cb_start_x - cbObj.dimensions.z/4
+        pCCB_bend_y = cb_start_y - cbObj.dimensions.z/4
+        pCCB_bend_z = cb_start_z + cbObj.dimensions.z -0.1
         vCCB_bend = Vector((pCCB_bend_x,pCCB_bend_y,pCCB_bend_z))
         #showVector(context,root_obj,vCCB_bend)
         # 子角梁尾，近似落于老角梁尾
