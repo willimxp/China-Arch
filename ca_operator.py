@@ -112,6 +112,7 @@ def getVectorDistance(point1: Vector, point2: Vector) -> float:
     """Calculate distance between two points.""" 
     return (point2 - point1).length
 
+# 在坐标点上摆放一个cube，以便直观看到
 def showVector(context,root_obj,point: Vector) -> object :
     bpy.ops.mesh.primitive_cube_add(size=0.3,location=point)
     cube = context.active_object
@@ -119,6 +120,13 @@ def showVector(context,root_obj,point: Vector) -> object :
     cube.name = '定位点'
     return cube
 
+# 把对象旋转与向量对齐
+# 对象要求水平放置，长边指向+X方向
+# 向量为原点到坐标点，两点需要先相减
+# 返回四元向量
+def getQuaternion(vector1,vector2):
+    vec = vector1 - vector2
+    return vec.to_track_quat('X','Z')
 
 # 根据基本参数，构建建筑体
 class CHINARCH_OT_build_piller(bpy.types.Operator, AddObjectHelper):
@@ -1144,22 +1152,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                 cb_end_z+rafter_offset
             ))
             cr_length = getVectorDistance(cr_start,cr_end)
-            # 根据起止点计算旋转角度
-            # https://blender.stackexchange.com/questions/194549/find-angles-between-list-of-sorted-vertices-using-vertex-co-angle
-            axis = Vector((0,1,0))
-            vec = cr_start - cr_end   # 将斜线平移到原点
-            vec_project_z = Vector((vec[0],vec[1],0)) #投影到Z平面
-            cr_rotation_z = math.radians(90) - axis.angle(vec_project_z)
-            # 求椽头Z旋转后的位置
-            cr_temp = Vector((
-                    cr_start[0],    # 椽头投影位置
-                    cr_start[1],    # 椽头投影位置
-                    cr_end[2]       # 与椽尾同高
-                ))
-            # 求夹角
-            cr_temp = cr_temp - cr_end
-            cr_rotation_y = vec.angle(cr_temp)
-            cr_rotation = (0,cr_rotation_y,cr_rotation_z)
+            cr_rotation = getQuaternion(cr_start,cr_end)
             crList.append((cr_start,cr_end,cr_length,cr_rotation))
 
         # 根据翼角椽数据集，摆放翼角椽
@@ -1179,7 +1172,8 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                     parentObj=root_obj
                 )
             crCopyObj.dimensions.x = cr_length
-            crCopyObj.rotation_euler =  cr_rotation            
+            crCopyObj.rotation_mode = 'QUATERNION'
+            crCopyObj.rotation_quaternion =  cr_rotation            
             # 基于角梁镜像
             mod = crCopyObj.modifiers.new(name='mirror', type='MIRROR')
             mod.use_axis[0] = False
@@ -1507,46 +1501,13 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                             cr_origin[1], 
                             cr_origin[2]
             ))
-
             # 计算翼角飞椽的前半段
             cfr_length = getVectorDistance(cfr_start,cfr_middle)
-            # 根据起止点计算旋转角度
-            axis = Vector((0,1,0))
-            vec = cfr_start - cfr_middle   # 将斜线平移到原点
-            vec_project_z = Vector((vec[0],vec[1],0)) #投影到Z平面
-            cfr_rotation_z = math.radians(90) - axis.angle(vec_project_z)
-            # 求椽头Z旋转后的位置
-            cfr_temp = Vector((
-                    cfr_start[0],    # 椽头投影位置
-                    cfr_start[1],    # 椽头投影位置
-                    cfr_middle[2]       # 与椽尾同高
-                ))
-            # 求夹角
-            cfr_temp = cfr_temp - cfr_middle
-            cfr_rotation_y = vec.angle(cfr_temp)
-            if cfr_start[2] > cfr_middle[2] : cfr_rotation_y = -cfr_rotation_y
-            #cfr_rotation_z = crList[n][3][2]
-            cfr_rotation = [0,cfr_rotation_y,cfr_rotation_z]
+            cfr_rotation = getQuaternion(cfr_start,cfr_middle)
             cfrFrontList.append((cfr_start,cfr_middle,cfr_length,cfr_rotation))          
-
             # 计算翼角飞椽的后半段
             cfr_length = getVectorDistance(cfr_middle,cfr_end)
-            # 根据起止点计算旋转角度
-            axis = Vector((0,1,0))
-            vec = cfr_middle - cfr_end   # 将斜线平移到原点
-            vec_project_z = Vector((vec[0],vec[1],0)) #投影到Z平面
-            cfr_rotation_z = math.radians(90) - axis.angle(vec_project_z)
-            # 求椽头Z旋转后的位置
-            cfr_temp = Vector((
-                    cfr_middle[0],    # 椽头投影位置
-                    cfr_middle[1],    # 椽头投影位置
-                    cfr_end[2]       # 与椽尾同高
-                ))
-            # 求夹角
-            cfr_temp = cfr_temp - cfr_end
-            cfr_rotation_y = vec.angle(cfr_temp)
-            if cfr_middle[2] > cfr_middle[2] : cfr_rotation_y = -cfr_rotation_y
-            cfr_rotation = [0,cfr_rotation_y,cfr_rotation_z]
+            cfr_rotation = getQuaternion(cfr_middle,cfr_end)
             cfrBackList.append((cfr_middle,cfr_end,cfr_length,cfr_rotation))
             
         # 根据翼角飞椽数据集，摆放翼角飞椽
@@ -1566,7 +1527,9 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                     parentObj=root_obj
                 )
             cfrCopyObj.dimensions.x = cfr_length
-            cfrCopyObj.rotation_euler =  cfr_rotation
+            #cfrCopyObj.rotation_euler =  cfr_rotation
+            cfrCopyObj.rotation_mode = 'QUATERNION'
+            cfrCopyObj.rotation_quaternion =  cfr_rotation
             # 基于角梁镜像
             mod = cfrCopyObj.modifiers.new(name='mirror', type='MIRROR')
             mod.use_axis[0] = False
@@ -1595,7 +1558,8 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                     parentObj=root_obj
                 )
             cfrCopyObj.dimensions.x = cfr_length
-            cfrCopyObj.rotation_euler =  cfr_rotation
+            cfrCopyObj.rotation_mode = 'QUATERNION'
+            cfrCopyObj.rotation_quaternion = cfr_rotation
             # 基于角梁镜像
             mod = cfrCopyObj.modifiers.new(name='mirror', type='MIRROR')
             mod.use_axis[0] = False
@@ -1606,8 +1570,6 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             mod.use_axis[0] = True
             mod.use_axis[1] = True
             mod.mirror_object = root_obj
-
-
 
         ########################
         # 完成
