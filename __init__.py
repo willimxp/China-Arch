@@ -62,6 +62,9 @@ def register():
     bpy.types.Object.chinarch_name = bpy.props.StringProperty()
     bpy.types.Object.chinarch_desc = bpy.props.StringProperty()
     bpy.types.Object.chinarch_level = bpy.props.IntProperty()
+    bpy.types.Object.chinarch_puzuo_extend = bpy.props.FloatProperty(name="铺作出跳",default=0.45, min=0, max=5)
+    bpy.types.Object.chinarch_beam_height = bpy.props.FloatProperty(name="梁底高度",default=0.72, min=0, max=5)
+    bpy.types.Object.chinarch_tuan_height = bpy.props.FloatProperty(name="撩风槫高度",default=0.99, min=0, max=5)
     bpy.types.Object.chinarch_scale = bpy.props.EnumProperty(
         #name="材份等级 ",
         description="切换构件的材份等级",

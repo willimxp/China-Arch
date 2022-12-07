@@ -148,21 +148,21 @@ class CHINARCH_scene_data(bpy.types.PropertyGroup):
             default="", 
             update=update_roof
         )
-    roof_base : bpy.props.FloatProperty(
-            name="檐槫高",
-            default=7.0, 
-            update=update_roof
-        )
+    # roof_base : bpy.props.FloatProperty(
+    #         name="檐槫高",
+    #         default=7.0, 
+    #         update=update_roof
+    #     )
     roof_height : bpy.props.FloatProperty(
             name="举高",
             default=10.0, 
             update=update_roof
         )
-    roof_extend : bpy.props.FloatProperty(
-            name="斗栱出跳",
-            default=0.45, 
-            update=update_roof
-        )
+    # roof_extend : bpy.props.FloatProperty(
+    #         name="斗栱出跳",
+    #         default=0.45, 
+    #         update=update_roof
+    #     )
     rafter_count : bpy.props.IntProperty(
             name="椽架数",
             default=8, 
