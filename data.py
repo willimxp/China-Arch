@@ -206,3 +206,28 @@ class CHINARCH_scene_data(bpy.types.PropertyGroup):
             default=3, 
             update=update_roof
     )
+    tile_source : bpy.props.StringProperty(
+            name="瓦片",
+            default="", 
+            update=update_roof
+    )
+    eave_tile_source : bpy.props.StringProperty(
+            name="瓦当",
+            default="", 
+            update=update_roof
+    )
+    ridge_source : bpy.props.StringProperty(
+            name="屋脊",
+            default="", 
+            update=update_roof
+    )
+    chiwen_source : bpy.props.StringProperty(
+            name="鸱吻",
+            default="", 
+            update=update_roof
+    )
+    wall_source : bpy.props.StringProperty(
+            name="墙体",
+            default="", 
+            update=update_roof
+    )

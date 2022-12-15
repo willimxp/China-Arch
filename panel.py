@@ -141,10 +141,43 @@ class CHINAARCH_PT_panel_roof(bpy.types.Panel):
         col = box.column(align=True)
         col.prop(dataset,"chong") # 生出
         col.prop(dataset,"qiqiao") # 起翘
+        
+        # 瓦片对象
+        row = layout.row()
+        row.label(text="屋瓦设置:")
+        box = layout.box() 
+        row = box.row()
+        row.prop_search(dataset,"tile_source",bpy.data,"objects")
+        # 瓦当对象
+        row = box.row()
+        row.prop_search(dataset,"eave_tile_source",bpy.data,"objects")
+        # 屋脊对象
+        row = box.row()
+        row.prop_search(dataset,"ridge_source",bpy.data,"objects")
+
 
         # 按钮：生成建筑外形，绑定build operator
         row = layout.row()
         row.operator("chinarch.buildroof",icon='HOME')
+
+# 屋瓦属性面板
+class CHINAARCH_PT_panel_tile(bpy.types.Panel):
+    bl_idname = "CHINAARCH_PT_panel_tile"
+    bl_label = "屋瓦层" 
+    bl_category = "China Arch"
+    bl_region_type = 'UI'
+    bl_space_type = 'VIEW_3D'    
+    bl_context = "objectmode"
+    
+    def draw(self, context):
+        dataset : data.CHINARCH_scene_data = context.scene.chinarch_data
+        layout = self.layout
+        # 瓦片对象
+        row = layout.row()
+        row.prop_search(dataset,"tile_source",bpy.data,"objects")
+        # 按钮：生成屋瓦
+        row = layout.row()
+        row.operator("chinarch.build_tile",icon='HOME')
 
 # 构件属性面板
 class CHINAARCH_PT_panel_property(bpy.types.Panel):
