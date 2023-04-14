@@ -130,6 +130,42 @@ def alignToVector(vector) -> Vector:
     euler = quaternion.to_euler('XYZ')
     return euler
 
+# 提取曲线上X方向等分的坐标点
+# 局限性，1，仅可判断两点定义的曲线，2，取值为近似值
+def getCurveSegment(curveObj,count):
+    accuracy = 10   # 拟合精度，倍数越高越精确
+    
+    bez_points:bpy.types.SplinePoints = curveObj.data.splines[0].bezier_points
+    # 以精度的倍数，在曲线上创建插值
+    tile_on_curveF = geometry.interpolate_bezier(
+        bez_points[0].co,
+        bez_points[0].handle_right,
+        bez_points[1].handle_left,
+        bez_points[1].co,
+        count * accuracy)
+    
+    segments = []
+    # X方向等分间距
+    span = (bez_points[0].co[0] - bez_points[1].co[0]) /(count-1)
+    for n in range(count):
+        if n == 0:
+            segments.append(bez_points[0].co)
+        elif n == count-1:
+            segments.append(bez_points[1].co)
+        else:
+            # 等分点的X坐标
+            pX = bez_points[0].co[0] - span * n
+            # 在插值点中查找最接近的插值点
+            near1 = 99999 # 一个超大的值
+            for point in tile_on_curveF:
+                near = math.fabs(point[0] - pX)
+                if near < near1 :
+                    nearPoint = point
+                    near1 = near
+            segments.append(nearPoint)
+    
+    return segments
+
 # 根据基本参数，构建建筑体
 class CHINARCH_OT_build_piller(bpy.types.Operator, AddObjectHelper):
     bl_idname="chinarch.buildpiller"
@@ -193,7 +229,7 @@ class CHINARCH_OT_build_piller(bpy.types.Operator, AddObjectHelper):
                 calc_uvs=True, 
                 enter_editmode=False, 
                 align='WORLD', 
-                location=(0.0, 0.0, z_base/-2), 
+                location=(0.0, 0.0, z_base/2), 
                 rotation=(0.0, 0.0, 0.0), 
                 scale=(base_width, base_length, z_base))
             context.object.name = "台基"
@@ -366,10 +402,10 @@ class CHINARCH_OT_build_piller(bpy.types.Operator, AddObjectHelper):
                         # 创建阑额
                         lane_start = net_x[nx-1]
                         lane_end = net_x[nx]
-                        lane_length = lane_end - lane_start - lane_gap
+                        lane_length = lane_end - lane_start
                         lane_x = (lane_start + lane_end) / 2
                         lane_y = net_y[ny]
-                        lane_z = pill_top - lane_height / 2
+                        lane_z = pill_top - lane_height / 2 + z_base
                         lane_pos = Vector((lane_x,lane_y,lane_z))
                         
                         if dataset.lane_source == '' :
@@ -406,10 +442,10 @@ class CHINARCH_OT_build_piller(bpy.types.Operator, AddObjectHelper):
                         # 创建阑额
                         lane_start = net_y[ny-1]
                         lane_end = net_y[ny]
-                        lane_length = lane_end - lane_start - lane_gap
+                        lane_length = lane_end - lane_start
                         lane_x = net_x[nx]
                         lane_y = (lane_start + lane_end) / 2
-                        lane_z = pill_top - lane_height / 2
+                        lane_z = pill_top - lane_height / 2 + z_base
                         lane_pos = Vector((lane_x,lane_y,lane_z))
                         
                         if dataset.lane_source == '' :
@@ -468,7 +504,7 @@ class CHINARCH_OT_build_puzuo(bpy.types.Operator):
         pill_top = pillerObj.dimensions.z
 
         # 默认无普拍枋时，铺作直接坐于柱头
-        puzuo_base = pill_top   
+        puzuo_base = pill_top + dataset.z_base
         bpy.ops.object.empty_add(type='PLAIN_AXES')
         root_obj = context.object
         root_obj.name = "铺作层"
@@ -624,7 +660,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         puzuoObj = bpy.data.objects.get(dataset.puzuo_piller_source)
         pillerObj= bpy.data.objects.get(dataset.piller_source)
         tuanObj = bpy.data.objects.get(dataset.tuan_source)
-        roof_base = pillerObj.dimensions.z + puzuoObj.chinarch_tuan_height +tuanObj.dimensions.z/2 - 0.01
+        roof_base = pillerObj.dimensions.z + puzuoObj.chinarch_tuan_height +tuanObj.dimensions.z/2 - 0.01 + dataset.z_base
         bpy.ops.object.empty_add(type='PLAIN_AXES')
         root_obj = context.object
         root_obj.name = "屋顶层"
@@ -635,7 +671,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         roof_height = dataset.roof_height   # 举高            
         roof_extend = puzuoObj.chinarch_puzuo_extend    # 斗栱出跳
         rafter_count = int(dataset.rafter_count_select)
-        hill_extend = 1.5   # 两厦出际，殿堂为1椽，厅堂为3～5尺，这里简化为固定值
+        hill_extend = dataset.hill_extend   # 两厦出际，殿堂为1椽，厅堂为3～5尺，这里为两侧出际的总和，单边实际要除2
 
         # 根据柱网，计算屋的总宽，总深
         room_width = net_x[-1] - net_x[0]  # 屋宽
@@ -645,7 +681,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         eave_width = room_width + roof_extend*2
         # 椽架宽度=屋深/椽架数
         rafter_space = room_length / rafter_count
-        rafter_extend = 0.6     # 槫子相交出头(两头一共) 
+        tuan_extend = 0.6     # 槫子相交出头(两头一共) 
 
         # 槫子位置列表(x,y,z,length,rotation)
         purlin_pos = []
@@ -681,7 +717,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                 # 2椽以上的槫子为歇山宽度
                 if n == rafter_count/2-1 and rafter_count >= 6 :
                     # 大于6椽，歇山转2椽，下平槫长度减1椽
-                    rafter_length = room_width - rafter_space*2 + rafter_extend
+                    rafter_length = room_width - rafter_space*2 + tuan_extend
                 else: 
                     rafter_length = hill_width
                 purlin_pos.append((0, rafter_y, rafter_z,rafter_length,0))
@@ -693,31 +729,18 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                     # 6椽架以上，山面下平槫，下平槫减1椽
                     # 4椽架以下，平槫减1椽
                     rafter_x = room_width/2 - rafter_space*(rafter_count/2-n)
-                    rafter_length = room_length - rafter_space*2*(rafter_count/2-n) + rafter_extend
+                    rafter_length = room_length - rafter_space*2*(rafter_count/2-n) + tuan_extend
                     purlin_pos.append((rafter_x, 0, rafter_z,rafter_length,90))             
 
                 # 为下一次迭代保存当前高度
                 rafter_z_pre = rafter_z
-        
-        # # 牛脊槫，位于柱头上方，在撩檐枋和平槫的连接线上
-        # piller_tuan_y = room_length/2
-        # piller_tuan_z = rafter_z*roof_extend / (roof_extend+rafter_space)
-        # # 牛脊槫长=屋宽+斗栱出跳x2+槫子出头
-        # rafter_length = room_width + rafter_extend
-        # purlin_pos.append((0,piller_tuan_y,piller_tuan_z,rafter_length,0))
-        # purlin_pos.append((0,-piller_tuan_y,piller_tuan_z,rafter_length,0))
-        # # 山面牛脊槫
-        # piller_tuan_x = room_width/2
-        # rafter_length = room_length + rafter_extend
-        # purlin_pos.append((piller_tuan_x,0,piller_tuan_z,rafter_length,90))
-        # purlin_pos.append((-piller_tuan_x,0,piller_tuan_z,rafter_length,90))
 
         # 撩风槫
-        rafter_length = eave_width + rafter_extend
+        rafter_length = eave_width + tuan_extend
         purlin_pos.append((0,eave_length/2,0,rafter_length,0))
         rafter_pos.append((0,eave_length/2,0))
         # 山面撩风槫
-        rafter_length = eave_length + rafter_extend
+        rafter_length = eave_length + tuan_extend
         purlin_pos.append((eave_width/2,0,0,rafter_length,90))
 
         # 布置所有槫子
@@ -742,72 +765,74 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                         #默认左右对成，前后檐槫相对Y轴对称 
                         mod.use_axis[0] = False
                         mod.use_axis[1] = True
+            hideObj(tuanObj)
             
             # 布置梁架
-            for x in range(1,len(net_x)-1):
-                x_pos = net_x[x]
-                for n in range(len(rafter_pos)):    # 简单通过举折点判断，排除两山槫子数据的影响
-                    pos = rafter_pos[n]
-                    # 添加替木 
-                    timuObj:bpy.types.Object = bpy.data.objects.get("替木模板")
-                    if n!=len(rafter_pos)-1 : #撩檐槫已经有斗拱上的替木
-                        timu_z = pos[2]-tuanObj.dimensions.z/2-timuObj.dimensions.z+0.01
-                        timuCopyObj = chinarchCopy(
-                            sourceObj= timuObj,
-                            name="替木",
-                            location=(x_pos,pos[1],timu_z),
-                            parentObj=root_obj
-                        )
-                        if n!=0 :   #脊槫无需镜像
-                            #前后檐槫替木镜像
-                            mod = timuCopyObj.modifiers.new(name='mirror', type='MIRROR')
-                            mod.mirror_object = root_obj
-                            mod.use_axis[0] = False
-                            mod.use_axis[1] = True
+            IsBuildBeam = False
+            if IsBuildBeam : 
+                for x in range(1,len(net_x)-1):
+                    x_pos = net_x[x]
+                    for n in range(len(rafter_pos)):    # 简单通过举折点判断，排除两山槫子数据的影响
+                        pos = rafter_pos[n]
+                        # 添加替木 
+                        timuObj:bpy.types.Object = bpy.data.objects.get("替木模板")
+                        if n!=len(rafter_pos)-1 : #撩檐槫已经有斗拱上的替木
+                            timu_z = pos[2]-tuanObj.dimensions.z/2-timuObj.dimensions.z+0.01
+                            timuCopyObj = chinarchCopy(
+                                sourceObj= timuObj,
+                                name="替木",
+                                location=(x_pos,pos[1],timu_z),
+                                parentObj=root_obj
+                            )
+                            if n!=0 :   #脊槫无需镜像
+                                #前后檐槫替木镜像
+                                mod = timuCopyObj.modifiers.new(name='mirror', type='MIRROR')
+                                mod.mirror_object = root_obj
+                                mod.use_axis[0] = False
+                                mod.use_axis[1] = True
 
-                    # 添加横梁
-                    beamObj:bpy.types.Object = bpy.data.objects.get("直梁模板")
-                    if n!=0 and n!=len(rafter_pos)-1: #脊槫、撩檐槫不加
-                        beam_x = x_pos
-                        beam_y = 0
-                        beam_z = timu_z-beamObj.dimensions.z
-                        beam_loc = (beam_x,beam_y,beam_z)
-                        beamCopyObj = chinarchCopy(
-                                    sourceObj= beamObj,
-                                    name="直梁",
-                                    location=beam_loc,
-                                    parentObj=root_obj
-                                )
-                        if n==len(rafter_pos)-2:
-                            # 最后一根梁通檐
-                            beamCopyObj.dimensions.x = room_length
-                        else:
-                            beamCopyObj.dimensions.x = pos[1]*2 + 0.4
+                        # 添加横梁
+                        beamObj:bpy.types.Object = bpy.data.objects.get("直梁模板")
+                        if n!=0 and n!=len(rafter_pos)-1: #脊槫、撩檐槫不加
+                            beam_x = x_pos
+                            beam_y = 0
+                            beam_z = timu_z-beamObj.dimensions.z
+                            beam_loc = (beam_x,beam_y,beam_z)
+                            beamCopyObj = chinarchCopy(
+                                        sourceObj= beamObj,
+                                        name="直梁",
+                                        location=beam_loc,
+                                        parentObj=root_obj
+                                    )
+                            if n==len(rafter_pos)-2:
+                                # 最后一根梁通檐
+                                beamCopyObj.dimensions.x = room_length
+                            else:
+                                beamCopyObj.dimensions.x = pos[1]*2 + 0.4
 
-                        # 在梁上添加蜀柱
-                        shuzhuObj:bpy.types.Object = bpy.data.objects.get("蜀柱模板")
-                        shuzhu_x =x_pos
-                        shuzhu_y= rafter_pos[n-1][1]
-                        shuzhu_z = timu_z
-                        shuzhuCopyObj = chinarchCopy(
-                                    sourceObj= shuzhuObj,
-                                    name="蜀柱",
-                                    location=(shuzhu_x,shuzhu_y,shuzhu_z),
-                                    parentObj=root_obj
-                                )
-                        shuzhu_height = rafter_pos[n-1][2]-rafter_pos[n][2]
-                        shuzhuCopyObj.dimensions.z = shuzhu_height
-                        if n!=1:
-                            #镜像
-                            mod = shuzhuCopyObj.modifiers.new(name='mirror', type='MIRROR')
-                            mod.mirror_object = root_obj
-                            mod.use_axis[0] = False
-                            mod.use_axis[1] = True
-
-            hideObj(tuanObj)
-            hideObj(timuObj)
-            hideObj(beamObj)
-            hideObj(shuzhuObj)
+                            # 在梁上添加蜀柱
+                            shuzhuObj:bpy.types.Object = bpy.data.objects.get("蜀柱模板")
+                            shuzhu_x =x_pos
+                            shuzhu_y= rafter_pos[n-1][1]
+                            shuzhu_z = timu_z
+                            shuzhuCopyObj = chinarchCopy(
+                                        sourceObj= shuzhuObj,
+                                        name="蜀柱",
+                                        location=(shuzhu_x,shuzhu_y,shuzhu_z),
+                                        parentObj=root_obj
+                                    )
+                            shuzhu_height = rafter_pos[n-1][2]-rafter_pos[n][2]
+                            shuzhuCopyObj.dimensions.z = shuzhu_height
+                            if n!=1:
+                                #镜像
+                                mod = shuzhuCopyObj.modifiers.new(name='mirror', type='MIRROR')
+                                mod.mirror_object = root_obj
+                                mod.use_axis[0] = False
+                                mod.use_axis[1] = True
+                hideObj(timuObj)
+                hideObj(beamObj)
+                hideObj(shuzhuObj)
+    
         redrawViewport()
 
         # ################################
@@ -816,7 +841,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         if dataset.rafter_source != '' :
             rafterObj:bpy.types.Object = context.scene.objects.get(dataset.rafter_source)
             rafter_offset = 0.15    # 槫子中心轴到椽子中心轴的偏移
-            rafter_extend = 0.2     # 椽子略微出头
+            rafter_extend = 0.1     # 椽子略微出头（雀台）
             rafterList = []     # 椽子属性列表，（x,y,z,rotation_x,rotation_y,rotaion_z,length,width）
             point_pre = (0,0,0) # 迭代暂存
 
@@ -849,11 +874,11 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                     if n == len(rafter_pos)-1:
                         # 最后一椽出檐
                         length = getVectorDistance(Vector(point),Vector(point_pre))
-                        eave_extend = dataset.eave_extend   # 檐椽出跳宽度
+                        eave_extend = dataset.eave_extend + rafter_extend   # 檐椽出跳宽度
                         eave_extend_length = eave_extend * length / (point[1]-point_pre[1])
-                        length += rafter_extend + eave_extend_length
+                        length += eave_extend_length
                         # orgin几何中心相应偏移
-                        pY = pY + eave_extend / 2
+                        pY = pY + eave_extend/ 2
                         pZ = pZ - math.sqrt(eave_extend_length**2 - eave_extend**2) / 2
                         width = room_width - rafter_space *2
                     else :
@@ -940,9 +965,12 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         if dataset.CornerBeam_source != '' and dataset.rafter_source!='': 
             cbObj:bpy.types.Object = context.scene.objects.get(dataset.CornerBeam_source)
             varChuChong = dataset.chong # 默认出冲3椽
+            varshengqi = dataset.shengqi # 生起，默认1椽
             l_ChuChong = rafterObj.dimensions.y * varChuChong
+            # 升头木的生起
+            l_shengqi = rafterObj.dimensions.y * varshengqi
            
-            # 正身椽数据
+            # 正身椽数据（此为最后插入的两厦檐椽，即实际旋转了90度）
             zhengshenchuan_x = rafterList[-1][0]
             zhengshenchuan_y = rafterList[-1][1]
             zhengshenchuan_z = rafterList[-1][2]
@@ -975,7 +1003,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             x1 = rafter_space + roof_extend  # 上平槫x - 撩风槫x
             x2 = eave_extend + rafter_extend + l_ChuChong # 角梁头x - 撩风槫x
             z2 = z1 * x2 / x1
-            cb_start_z = cb_end_z - z1 - z2
+            cb_start_z = cb_end_z - z1 - z2 + l_shengqi # 添加生起
             cb_start = Vector((cb_start_x,cb_start_y,cb_start_z))
             #showVector(context,root_obj,Vector((cb_start_x,cb_start_y,cb_start_z)))
             
@@ -1026,8 +1054,8 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
 
         #########################
         # 6、绘制小连檐曲线
-        curve_size=0.08 #小连檐横截面半径
-        curve_offset = 0.18 # 小连檐与椽子上下位移
+        curve_size = 0.08 # 小连檐横截面半径
+        curve_offset = 0.14 # 小连檐与椽子上下位移
         curve_tilt = 60 # 小连檐倾斜角度
 
         if dataset.rafter_source!='' :
@@ -1035,6 +1063,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             bpy.ops.curve.primitive_bezier_curve_add(enter_editmode=False,location=(0,0,0))
             curve = context.active_object
             curve.name = '前后檐小连檐'
+            curve1Name = curve.name  # 防止有重名的001等后缀
             curve.parent = root_obj
             curve.data.use_fill_caps = True 
             curve.data.bevel_mode = 'PROFILE'   #定义曲线横截面为方形
@@ -1056,7 +1085,9 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             pStart = Vector((pStart_x, pStart_y, pStart_z))
             # 起翘点在正身椽尾
             pEnd_x = cb_end_x # 角梁尾，即下平槫交点，也是起翘点
-            pEnd_y = cb_start_y - l_ChuChong - rafter_extend   
+            # pEnd_y = cb_start_y - l_ChuChong - rafter_extend   
+            # bug，小连檐水平点要与正身椽头对齐，而正身椽头因为做了相对于槫的位移，所以用出跳计算会有误差
+            pEnd_y = zhengshenchuan_startx - rafter_extend - room_width/2 + room_length/2 #把两厦椽头转化为前后檐椽头
             pEnd_z = zhengshenchuan_startz + curve_offset   #小连檐压于椽上方
             pEnd = Vector((pEnd_x, pEnd_y, pEnd_z))
             # 曲率控制点，在角梁交点处，控制出冲和起翘的弧度
@@ -1111,7 +1142,9 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             pStart_z = cb_start_z + cbObj.dimensions.z/2 - curve_size/2   # 上推到角梁上皮，再下移半个小连檐高度，保持上皮基本接近
             pStart = Vector((pStart_x, pStart_y, pStart_z))
             # 起翘点在正身椽尾
-            pEnd_x = cb_start_x - l_ChuChong - rafter_extend
+            #pEnd_x = cb_start_x - l_ChuChong - rafter_extend
+            # bug，小连檐水平点要与正身椽头对齐，而正身椽头因为做了相对于槫的位移，所以用出跳计算会有误差
+            pEnd_x = zhengshenchuan_startx - rafter_extend
             pEnd_y = cb_end_y   # 角梁尾，即下平槫交点，也是起翘点
             pEnd_z = zhengshenchuan_startz + curve_offset   #小连檐压于椽上方
             pEnd = Vector((pEnd_x, pEnd_y, pEnd_z))
@@ -1147,23 +1180,23 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         if dataset.rafter_source!='' : 
             cr_count = round((cb_start_x - cb_end_x) / rafter_gap_fb)
             # 在小连檐上定位
-            curve = context.scene.objects.get("前后檐小连檐")
-            bez_points:bpy.types.SplinePoints = curve.data.splines[0].bezier_points
-            points_on_curve = geometry.interpolate_bezier(
-                bez_points[0].co,
-                bez_points[0].handle_right,
-                bez_points[1].handle_left,
-                bez_points[1].co,
-                cr_count)
+            curve = context.scene.objects.get(curve1Name) # curve1Name='前后檐小连檐'或001等
+            # bez_points:bpy.types.SplinePoints = curve.data.splines[0].bezier_points
+            # points_on_curve = geometry.interpolate_bezier(
+            #     bez_points[0].co,
+            #     bez_points[0].handle_right,
+            #     bez_points[1].handle_left,
+            #     bez_points[1].co,
+            #     cr_count)
+            points_on_curve = getCurveSegment(curve,cr_count)
             
             # 构造翼角椽数据集，便于后续翼角飞椽的复用
             crList = []
             for n in range(len(points_on_curve)):
-                if n == len(points_on_curve)-1 : continue   # 不画最后一根翼角椽,避免与正身椽重合
                 point = points_on_curve[n]
                 # 翼角椽头压在小连檐下方
                 cr_start = Vector((point[0],
-                    point[1]+rafter_extend+0.05, # 向外延伸椽头，修正0.05误差，不知道哪里来的误差
+                    point[1]+rafter_extend, 
                     point[2]-curve_offset   # 从小连檐位置向下
                 ))
                 # 翼角椽尾在角梁尾，并与正身椽尾对齐
@@ -1176,7 +1209,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                 crList.append((cr_start,cr_end,cr_length,cr_rotation))
 
             # 根据翼角椽数据集，摆放翼角椽
-            for cr in crList:
+            for cr in crList[1:-1]: # 排除第一根和最后一根
                 cr_start = cr[0]
                 cr_end = cr[1]
                 cr_length = cr[2]
@@ -1307,9 +1340,9 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             vCCB_start = Vector((pCCB_start_x,pCCB_start_y,pCCB_start_z))
             #showVector(context,root_obj,vCCB_start)
             # 子角梁转折点，近似落于老角梁头
-            pCCB_bend_x = cb_start_x - cbObj.dimensions.z/4
-            pCCB_bend_y = cb_start_y - cbObj.dimensions.z/4
-            pCCB_bend_z = cb_start_z + cbObj.dimensions.z -0.1
+            pCCB_bend_x = cb_start_x - cbObj.dimensions.z *2
+            pCCB_bend_y = cb_start_y - cbObj.dimensions.z *2
+            pCCB_bend_z = cb_start_z + cbObj.dimensions.z/2
             vCCB_bend = Vector((pCCB_bend_x,pCCB_bend_y,pCCB_bend_z))
             #showVector(context,root_obj,vCCB_bend)
             # 子角梁尾，近似落于老角梁尾
@@ -1331,7 +1364,8 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                             (pCCB_start_z + pCCB_bend_z)/2),
                         parentObj=root_obj
                 )
-            ccbStartObj.dimensions.x = getVectorDistance(vCCB_start,vCCB_bend)
+            ccbStartObj.dimensions = (getVectorDistance(vCCB_start,vCCB_bend),0.3,0.3)
+            
             # 计算夹角
             axis = Vector((0,0,1))
             vec = vCCB_start - vCCB_bend
@@ -1367,13 +1401,14 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             # 8.4 绘制大连檐curveF
             curveF_size=0.15 #大连檐横截面半径
             curveF_offset_y = 0.18  # 大连檐与飞椽头内外位移
-            curveF_offset_z = 0.20  # 大连檐与飞椽头上下位移
-            curveF_tilt = 60 # 大连檐倾斜角度
+            curveF_offset_z = 0.2  # 大连檐与飞椽头上下位移
+            curveF_tilt = 45 # 大连檐倾斜角度
 
             # 构造前后檐大连檐curveF
             bpy.ops.curve.primitive_bezier_curve_add(enter_editmode=False,location=(0,0,0))
             curveF = context.active_object
             curveF.name = '前后檐大连檐'
+            curve2Name = curveF.name
             curveF.parent = root_obj
             curveF.data.use_fill_caps = True 
             curveF.data.bevel_mode = 'PROFILE'   #定义曲线横截面为方形
@@ -1391,7 +1426,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             # 起点与子角梁交点,略短，以免穿模
             pStart_x = pCCB_start_x - cbObj.dimensions.y/2 # 内收半角梁宽，避免串模
             pStart_y = pCCB_start_y - 0.1
-            pStart_z = pCCB_start_z + cbObj.dimensions.z/2 - curve_size/2-0.05   # 上推到角梁上皮，再下移半个小连檐高度，保持上皮基本接近
+            pStart_z = pCCB_start_z + cbObj.dimensions.z/2 - curve_size/2-0.15   # 上推到角梁上皮，再下移半个小连檐高度，保持上皮基本接近
             pStart = Vector((pStart_x, pStart_y, pStart_z))
             #showVector(context,root_obj,pStart)
             # 起翘点在正身椽尾
@@ -1449,7 +1484,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             # 起点与子角梁交点,略短，以免穿模
             pStart_x = pCCB_start_x -0.1
             pStart_y = pCCB_start_y - cbObj.dimensions.y/2 # 内收半角梁宽，避免串模
-            pStart_z = pCCB_start_z + cbObj.dimensions.z/2 - curve_size/2-0.05   # 上推到角梁上皮，再下移半个小连檐高度，保持上皮基本接近
+            pStart_z = pCCB_start_z + cbObj.dimensions.z/2 - curve_size/2-0.15   # 上推到角梁上皮，再下移半个小连檐高度，保持上皮基本接近
             pStart = Vector((pStart_x, pStart_y, pStart_z))
             #showVector(context,root_obj,pStart)
             # 起翘点在正身椽尾
@@ -1489,20 +1524,20 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             # 翼角飞椽根数
             cfr_count = cr_count    # 与翼角椽匹配
             # 在大连檐上定位
-            curveF = context.scene.objects.get("前后檐大连檐")
-            bez_points:bpy.types.SplinePoints = curveF.data.splines[0].bezier_points
-            points_on_curveF = geometry.interpolate_bezier(
-                bez_points[0].co,
-                bez_points[0].handle_right,
-                bez_points[1].handle_left,
-                bez_points[1].co,
-                cfr_count)
+            curveF = context.scene.objects.get(curve2Name) # "前后檐大连檐"或001等
+            # bez_points:bpy.types.SplinePoints = curveF.data.splines[0].bezier_points
+            # points_on_curveF = geometry.interpolate_bezier(
+            #     bez_points[0].co,
+            #     bez_points[0].handle_right,
+            #     bez_points[1].handle_left,
+            #     bez_points[1].co,
+            #     cfr_count)
+            points_on_curveF = getCurveSegment(curveF,cfr_count)
             
             # 构造翼角飞椽数据集，分前后两个转折，计算3个定位点
             cfrFrontList = []
             cfrBackList = []
             for n in range(len(points_on_curveF)):
-                if n == len(points_on_curveF)-1 : continue   # 不画最后一根翼角飞椽,避免与正身椽重合
                 pointCR = points_on_curve[n]    #小连檐上的节点
                 pointCFR = points_on_curveF[n]  #大连檐上的节点
                 # 1、翼角飞椽头压在大连檐下方
@@ -1510,7 +1545,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                     pointCFR[1]+curveF_offset_y, # 向外延伸椽头
                     pointCFR[2]-curveF_offset_z   # 从大连檐位置向下
                 ))
-                if n == 0 : cfr_start[0] -= 0.1 #略有误差，手工纠偏
+                # if n == 0 : cfr_start[0] -= 0.1 #略有误差，手工纠偏
                 # 2、翼角飞椽转折点在小连檐附近
                 cfr_middle = pointCR+Vector((0,0,0.1))
                 cr_start = crList[n][0]
@@ -1532,7 +1567,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                 cfrBackList.append((cfr_middle,cfr_end,cfr_length,cfr_rotation))
                 
             # 根据翼角飞椽数据集，摆放翼角飞椽
-            for cfr in cfrBackList:
+            for cfr in cfrBackList[1:-1]: # 排除第一根和最后一根
                 cfr_start = cfr[0]
                 cfr_end = cfr[1]
                 cfr_length = cfr[2]
@@ -1558,7 +1593,7 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
                 mod.use_axis[1] = True
                 mod.mirror_object = root_obj
 
-            for cfr in cfrFrontList:
+            for cfr in cfrFrontList[1:-1]: # 排除第一根和最后一根
                 cfr_start = cfr[0]
                 cfr_end = cfr[1]
                 cfr_length = cfr[2]
@@ -1594,8 +1629,8 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             # 屋瓦横向间隔，粗略重叠20%，后续会根据屋宽取整数瓦垄后微调
             tile_gap = tileObj.dimensions.x * 0.8
             # 屋瓦离槫子的间隔
-            tile_offset = 0.36  
-            tile_offset_y = 0.2 # 檐口的间距
+            tile_offset = 0.45  
+            tile_offset_y = 0.3 # 檐口的间距
             
             # 9.1、创建集合，以免误删用户自建的模型
             getCollection(context,"ca屋瓦层",True) 
@@ -1604,45 +1639,118 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             puzuoObj = bpy.data.objects.get(dataset.puzuo_piller_source)
             pillerObj= bpy.data.objects.get(dataset.piller_source)
             tuanObj = bpy.data.objects.get(dataset.tuan_source)
-            roof_base = pillerObj.dimensions.z + puzuoObj.chinarch_tuan_height +tuanObj.dimensions.z/2 - 0.01
+            roof_base = pillerObj.dimensions.z + puzuoObj.chinarch_tuan_height +tuanObj.dimensions.z/2 - 0.01 + dataset.z_base
             bpy.ops.object.empty_add(type='PLAIN_AXES')
             root_obj = context.object
             root_obj.name = "屋瓦层"
             root_obj.location = (0,0,roof_base)
 
             # 9.3、创建正身前后檐瓦
-            # 9.3.1、根据槫子举折，绘制坡面曲线
-            bm = bmesh.new()
-            vStart = (0,0,0)
-            # 手工添加飞椽头的檐口点
-            vStart = bm.verts.new((0,pFR_start2[1]-tile_offset_y,pFR_start2[2]+tile_offset))
-            vEnd = bm.verts.new((0,pFR_start2[1]-tile_offset_y-0.01,pFR_start2[2]+tile_offset))
-            bm.edges.new((vStart,vEnd))
-            vStart = vEnd
-            for n in reversed(range(len(rafter_pos))) :
-                p = rafter_pos[n]
-                v = bm.verts.new((0, p[1]+tile_offset, p[2]+tile_offset))
-                vEnd = v
-                bm.edges.new((vStart,vEnd))
-                vStart = v
-            mesh = bpy.data.meshes.new("前后檐瓦曲线")
-            bm.to_mesh(mesh)
-            object_utils.object_data_add(context, mesh, operator=self)            
-            # 转为平滑曲线
-            bpy.ops.object.convert(target='CURVE')        
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.curve.select_all(action='SELECT')
-            bpy.ops.curve.spline_type_set(type='BEZIER')
-            bpy.ops.curve.handle_type_set(type='AUTOMATIC')
-            bpy.ops.object.mode_set(mode='OBJECT')
-            curveObj = context.object
-            curveObj.location = (0,0,0)
-            curveObj.parent = root_obj
-            bez_points = curveObj.data.splines[0].bezier_points
-            for bez_point in bez_points:
-                bez_point.tilt = math.radians(180)
+            if rafter_count > 4:
+                tile_trans_width = hill_width /2
+            else:
+                # 4架及以下的歇山顶瓦面不考虑出际，否则前后檐瓦和翼角瓦就重叠了。
+                tile_trans_width = (hill_width-hill_extend) /2
 
-            # 9.3.2 布置前后檐屋瓦
+            # 9.3.1、创建翼角瓦
+            # 不再通过阵列平铺、也不用晶格变形，这样与椽、飞都无法良好的拟合
+            # 转角镜像控制点（用于每一垄的mirror modifier）
+            pDiagonal_start_x = (room_width-room_length)/2
+            bpy.ops.object.empty_add(type='PLAIN_AXES')
+            DiagonalObj = context.object
+            DiagonalObj.name = "转角镜像控制点"
+            DiagonalObj.parent = root_obj
+            DiagonalObj.location = (pDiagonal_start_x,0,0)
+            DiagonalObj.rotation_euler.z = math.radians(45)
+            # 采用逐个瓦垄分别生成的方式，沿着大连檐进行排布
+            pStart_x = room_width/2 - rafter_space  #起点为转过一椽的翼角起点（下平槫交点）
+            pEnd_x = pCCB_start_x #终点到子角梁头
+            nTileLines = math.ceil((pEnd_x-pStart_x)/tile_gap) #求瓦垄数
+            corner_tile_gap = (pEnd_x-pStart_x)/nTileLines
+            # 在大连檐上定位每个瓦垄的终点
+            curveF = context.scene.objects.get(curve2Name) # "前后檐大连檐"或001等    
+            curveSegments = getCurveSegment(curveF,nTileLines)       
+            # 循环生成每一垄翼角瓦
+            for nTile in range(nTileLines):
+                # 重绘到大连檐的屋瓦曲线
+                bm = bmesh.new()
+                vStart = (0,0,0)
+                # 定位檐口点
+                pTileLineEnd = curveSegments[nTile]
+                # 大连檐先通过curveF_offset_y/z偏移找回飞子头坐标，然后根据正身瓦偏移参数tile_offset对齐
+                pStart = (0,
+                        pTileLineEnd[1] + curveF_offset_y - tile_offset_y , 
+                        pTileLineEnd[2] - curveF_offset_z + tile_offset ) 
+                vStart = bm.verts.new(pStart)
+                for nRafter in reversed(range(len(rafter_pos))) :
+                    p = rafter_pos[nRafter]
+                    v = bm.verts.new((0, p[1]+tile_offset, p[2]+tile_offset+pTileLineEnd[2]))
+                    vEnd = v
+                    bm.edges.new((vStart,vEnd))
+                    vStart = v
+                mesh = bpy.data.meshes.new("前后檐瓦曲线")
+                bm.to_mesh(mesh)
+                object_utils.object_data_add(context, mesh, operator=self)            
+                # 转为平滑曲线
+                bpy.ops.object.convert(target='CURVE')        
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.curve.select_all(action='SELECT')
+                bpy.ops.curve.spline_type_set(type='BEZIER')
+                bpy.ops.curve.handle_type_set(type='AUTOMATIC')
+                bpy.ops.object.mode_set(mode='OBJECT')
+                curveObj = context.object
+                curveObj.location = (0,0,0)
+                curveObj.parent = root_obj
+                bez_points = curveObj.data.splines[0].bezier_points
+                for bez_point in bez_points:
+                    bez_point.tilt = math.radians(180)
+                # 复制出一个瓦
+                corner_tileCopyObj = chinarchCopy(tileObj,"翼角瓦",(pTileLineEnd[0],0,0),root_obj)
+                # 翼角瓦倾斜
+                if nTile < nTileLines-2 : 
+                    a = curveSegments[nTile+1][2] - curveSegments[nTile][2]   # 对边，附近两个点的高差
+                    b = curveSegments[nTile+1][0] - curveSegments[nTile][0]   # 直角边，两个点的水平距离
+                    corner_tile_tilt = math.atan(a/b)
+                corner_tileCopyObj.rotation_euler.y = -corner_tile_tilt * 2 # 因为曲线插值点在x方向没有均匀分布，所以转角有较大误差，为了避免空隙，强行角度翻倍
+                # 坡面纵向单列
+                mod:bpy.types.ArrayModifier = corner_tileCopyObj.modifiers.new(name='纵向单列', type='ARRAY')
+                mod.fit_type = 'FIT_CURVE'
+                mod.curve = curveObj
+                mod.use_relative_offset = False
+                mod.use_constant_offset = True
+                mod.constant_offset_displace = (0,tile_overlap,0)
+                if dataset.eave_tile_source != '' : # 设置瓦当
+                    tileCapObj = bpy.data.objects.get(dataset.eave_tile_source)
+                    mod.start_cap = tileCapObj
+                # 贴合坡面曲线
+                mod = corner_tileCopyObj.modifiers.new(name='curve', type='CURVE')
+                mod.object = curveObj
+                mod.deform_axis = 'NEG_Y'
+                # 最后一垄补齐到出际点
+                if nTile == nTileLines - 1 : 
+                    # 横向平铺矩阵，覆盖翼角的2椽架，多余部分会在mirror中bisect掉
+                    corner_tile_width = pStart_x - tile_trans_width
+                    count = math.ceil(corner_tile_width /tile_gap)
+                    if count > 0 : # 如果只转一椽，或出际较大，可能导致count=0而抛出异常
+                        corner_gap =  corner_tile_width / count         # 反求整后的间距
+                        mod:bpy.types.ArrayModifier = corner_tileCopyObj.modifiers.new(name='横向矩阵', type='ARRAY')
+                        mod.count = count + 1    
+                        mod.use_relative_offset = False
+                        mod.use_constant_offset = True
+                        mod.constant_offset_displace = (corner_gap,0,0)
+                # 斜线对称
+                mod:bpy.types.MirrorModifier = corner_tileCopyObj.modifiers.new(name='斜线对称', type='MIRROR')
+                mod.use_axis[0] = False
+                mod.use_axis[1] = True
+                mod.use_bisect_axis[1] = True
+                mod.mirror_object = DiagonalObj
+                # X/Y轴镜像
+                mod = corner_tileCopyObj.modifiers.new(name='XY对称', type='MIRROR')
+                mod.use_axis[0] = True
+                mod.use_axis[1] = True
+                mod.mirror_object = root_obj
+            
+            # 9.3.3 布置前后檐屋瓦
             # 先贴合屋面曲线纵向排单列，然后横向平铺，最后X/Y轴镜像
             tileCopyObj = chinarchCopy(tileObj,"前后檐正身瓦",(0,0,0),root_obj)
             # 坡面纵向单列
@@ -1664,14 +1772,15 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             mod.object = curveObj
             mod.deform_axis = 'NEG_Y'
             # 横向平铺矩阵，按照正身加出际的宽度
-            tile_trans_width = hill_width /2 - rafter_d  # 向内调整1椽径，避免屋瓦悬空
-            count = int(tile_trans_width /tile_gap)
-            tile_gap =  tile_trans_width / count         # 反求整后的间距
+            pStart_x = room_width/2 - rafter_space  #起点为转过一椽的翼角起点（下平槫交点）
+            count = math.ceil(pStart_x/tile_gap) # 暂不考虑出际，与翼角瓦对接的转角宽度计算
+            front_gap =  pStart_x/count         # 反求整后的间距
+            count = math.ceil(hill_width/2/front_gap)    # 实际的平铺宽度仍然铺到出际点
             mod:bpy.types.ArrayModifier = tileCopyObj.modifiers.new(name='横向矩阵', type='ARRAY')
-            mod.count = count+1
+            mod.count = count
             mod.use_relative_offset = False
             mod.use_constant_offset = True
-            mod.constant_offset_displace = (tile_gap,0,0)
+            mod.constant_offset_displace = (-front_gap,0,0)
             # X/Y轴镜像
             mod = tileCopyObj.modifiers.new(name='XY对称', type='MIRROR')
             mod.use_axis[0] = True
@@ -1680,68 +1789,6 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             mod.use_bisect_axis[0]= True
             mod.use_bisect_axis[1]= True
             hideObj(tileObj)
-
-            # 9.3.3、创建翼角瓦
-            # 主体部分与正身瓦相似，不同在于
-            # 1. 起始点不在中心
-            # 2. 横向平铺宽度只需要2椽架
-            # 3. 通过45度镜像+bisect，做出转角
-            # 4. 横向依附起翘曲线
-            # 初始坐标从45度对称中心开始
-            pStart_x = tile_trans_width + tile_gap
-            corner_tileCopyObj = chinarchCopy(tileObj,"翼角瓦",(pStart_x,0,0),root_obj)
-            # 坡面纵向单列
-            mod:bpy.types.ArrayModifier = corner_tileCopyObj.modifiers.new(name='纵向单列', type='ARRAY')
-            mod.fit_type = 'FIT_CURVE'
-            mod.curve = curveObj
-            mod.use_relative_offset = False
-            mod.use_constant_offset = True
-            mod.constant_offset_displace = (0,tile_overlap,0)
-            if dataset.eave_tile_source != '' :
-                tileCapObj = bpy.data.objects.get(dataset.eave_tile_source)
-                mod.start_cap = tileCapObj
-            # 贴合坡面曲线
-            mod = corner_tileCopyObj.modifiers.new(name='curve', type='CURVE')
-            mod.object = curveObj
-            mod.deform_axis = 'NEG_Y'
-            # 横向平铺矩阵，覆盖翼角的2椽架，多余部分会在mirror中bisect掉
-            corner_tile_width = rafter_space * 4 + l_ChuChong # 覆盖2椽架
-            count = int(corner_tile_width /tile_gap)
-            tile_gap_x =  corner_tile_width / count         # 反求整后的间距
-            tile_gap_y = 0  # l_ChuChong / count 
-            tile_gap_z = 0  # l_QiQiao / count
-            mod:bpy.types.ArrayModifier = corner_tileCopyObj.modifiers.new(name='横向矩阵', type='ARRAY')
-            mod.count = count     
-            mod.use_relative_offset = False
-            mod.use_constant_offset = True
-            mod.constant_offset_displace = (tile_gap_x,tile_gap_y,tile_gap_z)
-            # 晶格变形，平滑翼角曲线
-            cornerTileLattic = bpy.data.objects.get("翼角修饰")
-            loc_y = rafter_pos[-2][1] + cornerTileLattic.dimensions.x/2
-            loc_x = rafter_pos[-2][1] + (room_width-room_length)/2 + cornerTileLattic.dimensions.x/2
-            cornerTileLattic.location = (loc_x,loc_y,0) 
-            cornerTileLattic.parent = root_obj
-            mod = corner_tileCopyObj.modifiers.new(name='曲线修饰',type='LATTICE')
-            mod.object = cornerTileLattic
-            # 斜线对称
-            pDiagonal_start_x = (room_width-room_length)/2
-            bpy.ops.object.empty_add(type='PLAIN_AXES')
-            DiagonalObj = context.object
-            DiagonalObj.name = "转角镜像控制点"
-            DiagonalObj.parent = root_obj
-            DiagonalObj.location = (pDiagonal_start_x,0,0)
-            DiagonalObj.rotation_euler.z = math.radians(45)
-            mod:bpy.types.MirrorModifier = corner_tileCopyObj.modifiers.new(name='斜线对称', type='MIRROR')
-            mod.use_axis[0] = False
-            mod.use_axis[1] = True
-            mod.use_bisect_axis[1] = True
-            mod.mirror_object = DiagonalObj
-            # X/Y轴镜像
-            mod = corner_tileCopyObj.modifiers.new(name='XY对称', type='MIRROR')
-            mod.use_axis[0] = True
-            mod.use_axis[1] = True
-            mod.mirror_object = root_obj
-
 
             # 9.3.4、创建两厦瓦
             # 复制正身瓦对象
@@ -1754,16 +1801,16 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             mod.object = side_curveObj
             # 修改纵向单列array，只到山腰
             mod:bpy.types.ArrayModifier = side_tileCopyObj.modifiers.get("纵向单列")
-            mod.fit_type = 'FIXED_COUNT'
-            mod.count = 18 #todo:后续应该计算实际山腰长度
+            mod.fit_type = 'FIT_LENGTH'
+            mod.fit_length = rafterList[-1][6]  # 正身椽长度（近似）
             # 修改横向阵列，只到山面正身宽度，并适配间距
-            side_width = (tile_trans_width * 2 - room_width + room_length)/2 + tile_gap
-            side_count = round(side_width/tile_gap)
+            side_width = (tile_trans_width * 2 - room_width + room_length)/2
+            side_count = math.ceil(side_width/tile_gap)
             side_gap = side_width / side_count
             mod:bpy.types.ArrayModifier = side_tileCopyObj.modifiers.get("横向矩阵")
             mod.fit_type = 'FIXED_COUNT'
             mod.count = side_count
-            mod.constant_offset_displace = (side_gap,0,0)
+            mod.constant_offset_displace = (-side_gap,0,0)
             # 修改对称
             mod = side_tileCopyObj.modifiers.get("XY对称")
             mod.use_bisect_flip_axis[1]= True
@@ -1798,27 +1845,27 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         if dataset.ridge_source != '' :
             ridgeObj = bpy.data.objects.get(dataset.ridge_source)
             # 创建正脊
-            zhengji_z = dataset.roof_height + tile_offset + 0.48  # 手工偏移
+            zhengji_z = dataset.roof_height + tile_offset + 0.35  # 手工偏移
             roofRidgeObj = chinarchCopy(ridgeObj,"正脊",(0,0,zhengji_z),root_obj)
             mod = roofRidgeObj.modifiers.new('横向平铺','ARRAY')
             mod.fit_type = 'FIT_LENGTH'
-            mod.fit_length = tile_trans_width
+            mod.fit_length = hill_width/2
             mod = roofRidgeObj.modifiers.new('X向对称','MIRROR')
             mod.mirror_object = root_obj
 
             # 创建垂脊
             # 绘制垂脊曲线，与屋瓦曲线方向相反。
             bm = bmesh.new()
+            # quxian cong 
+            vStart = bm.verts.new((0,0,zhengji_z+0.2))
             for n in range(len(rafter_pos)) :
                 p = rafter_pos[n]
-                v = bm.verts.new((0, p[1]+tile_offset, p[2]+tile_offset+0.1))
-                if n == 0 :
-                    vStart = v
-                    continue
-                else :
-                    vEnd = v
-                    bm.edges.new((vStart,vEnd))
-                    vStart = v
+                v = bm.verts.new((0, p[1]+tile_offset, p[2]+tile_offset-0.05))
+                vEnd = v
+                bm.edges.new((vStart,vEnd))
+                vStart = v
+            vEnd = bm.verts.new((0, p[1]+tile_offset+0.01, p[2]+tile_offset-0.05))
+            bm.edges.new((vStart,vEnd))
             mesh = bpy.data.meshes.new("垂脊曲线")
             bm.to_mesh(mesh)
             object_utils.object_data_add(context, mesh, operator=self)            
@@ -1827,14 +1874,14 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             bpy.ops.object.mode_set(mode='EDIT')
             bpy.ops.curve.select_all(action='SELECT')
             bpy.ops.curve.spline_type_set(type='BEZIER')
-            bpy.ops.curve.handle_type_set(type='AUTOMATIC')
+            bpy.ops.curve.handle_type_set(type='AUTOMATIC') 
             bpy.ops.object.mode_set(mode='OBJECT')
             chuiji_curveObj = context.object
             chuiji_curveObj.location = (0,0,0)
             chuiji_curveObj.parent = root_obj
             bez_points = chuiji_curveObj.data.splines[0].bezier_points
             # 布置垂脊
-            roofRidgeObj = chinarchCopy(ridgeObj,"垂脊",(-1,tile_trans_width,0),root_obj)
+            roofRidgeObj = chinarchCopy(ridgeObj,"垂脊",(0,hill_width/2,0),root_obj)
             mod = roofRidgeObj.modifiers.new('沿屋面下垂','ARRAY')
             mod.fit_type = 'FIT_CURVE'
             mod.curve = chuiji_curveObj
@@ -1852,17 +1899,25 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             # 创建戗脊曲线，两点定位
             # 很难计算，需要依赖人工调整
             # 计算出际影响后的转角末点
-            tuan_diff_height = rafter_pos[-3][2] - rafter_pos[-2][2]
-            tuan_diff_length = rafter_pos[-2][1] - rafter_pos[-3][1]
-            trans_height = tuan_diff_height * hill_extend / tuan_diff_length /2
-            trans_height = rafter_pos[-3][2] - trans_height + tile_offset * math.sqrt(2) + 0.2
-            vCurveStart = Vector((tile_trans_width,
-                tile_trans_width - (room_width-room_length)/2,
-                trans_height # 1.8  # 很难计算，只能人工调整
+            if rafter_count < 6 : # 只转一椽
+                tuan_diff_height = rafter_pos[-2][2] - rafter_pos[-1][2]
+                tuan_diff_length = rafter_pos[-1][1] - rafter_pos[-2][1]
+                trans_height = tuan_diff_height * hill_extend / tuan_diff_length /2
+                trans_height = rafter_pos[-2][2] - trans_height + tile_offset * math.sqrt(2) + 0.05
+            else :
+                tuan_diff_height = rafter_pos[-3][2] - rafter_pos[-2][2]
+                tuan_diff_length = rafter_pos[-2][1] - rafter_pos[-3][1]
+                trans_height = tuan_diff_height * hill_extend / tuan_diff_length /2
+                trans_height = rafter_pos[-3][2] - trans_height + tile_offset * math.sqrt(2) + 0.05
+            vCurveStart = Vector((hill_width/2,
+                hill_width/2 - (room_width-room_length)/2,
+                trans_height 
             ))
-            vHandleRight = vCurveStart + Vector((2,2,-1))
-            vCurveEnd = vCCB_start + Vector((-0.2,-0.2,0.5))
-            vHandleLeft = vCurveEnd + Vector((-1.5,-1.5,0))
+            vCurveEnd = vCCB_start + Vector((0,0,0.13))
+            l = vCurveEnd[0] - vCurveStart[0]
+            h = vCurveEnd[2] - vCurveStart[2]
+            vHandleRight = vCurveStart + Vector((0.3*l,0.3*l,0.5*h))
+            vHandleLeft = vCurveEnd + Vector((-0.4*l,-0.4*l,0))
             bpy.ops.curve.primitive_bezier_curve_add(enter_editmode=False,location=(0,0,0))
             curveChuangji = context.active_object
             curveChuangji.name = '戗脊曲线'
@@ -1895,16 +1950,16 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             mod.mirror_object = root_obj
 
             # 创建华废
-            hf_x = -0.11
-            hf_y = tile_trans_width + tile_gap
-            hf_tileObj = chinarchCopy(tileCapObj,"华废",(hf_x,hf_y,0),root_obj)
+            hf_x = -0.4
+            hf_y = hill_width /2 + tile_gap
+            hf_tileObj = chinarchCopy(tileCapObj,"华废",(hf_x,hf_y,0.2),root_obj)
             # 纵向排列Array
             length = getVectorDistance(Vector(rafter_pos[0]),Vector((0,vCurveStart[1],vCurveStart[2]))) + 0.2
             mod = hf_tileObj.modifiers.new('纵向排列','ARRAY')
             mod.fit_type = 'FIT_LENGTH'
             mod.fit_length = length #4.6 # todo:如何自动计算？
             mod.start_cap = tileCapObj
-            mod.relative_offset_displace[0] = 0.8
+            mod.relative_offset_displace[0] = -0.8
             # 贴合曲线Curve
             mod = hf_tileObj.modifiers.new('贴合曲线','CURVE')
             mod.object = chuiji_curveObj
@@ -1917,26 +1972,26 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
             mod.mirror_object = root_obj
 
             # 创建博脊
-            roofRidgeObj = chinarchCopy(ridgeObj,"博脊",(tile_trans_width+0.1,0,trans_height-0.1),root_obj)
+            roofRidgeObj = chinarchCopy(ridgeObj,"博脊",(hill_width/2+0.1,0,trans_height-0.1),root_obj)
             roofRidgeObj.rotation_euler.z = math.radians(90)
             mod = roofRidgeObj.modifiers.new("横向平铺",'ARRAY')
             mod.fit_type = 'FIT_LENGTH'
-            mod.fit_length = tile_trans_width - (room_width-room_length)/2
+            mod.fit_length = hill_width/2 - (room_width-room_length)/2
             mod = roofRidgeObj.modifiers.new('X向对称','MIRROR')
             mod.use_axis[0] = True
             mod.use_axis[1] = True
             mod.mirror_object = root_obj
-            # 定位山花板
-            shanhuaObj = bpy.data.objects.get('山花板')
-            shanhuaObj.parent = root_obj
-            shanhuaObj.location = (hill_width/2-rafter_d*4,0,trans_height-0.1)
+            # # 定位山花板
+            # shanhuaObj = bpy.data.objects.get('山花板')
+            # shanhuaObj.parent = root_obj
+            # shanhuaObj.location = (hill_width/2-rafter_d*4,0,trans_height-0.1)
 
             hideObj(ridgeObj)
 
         ###############################
         # 11、定位鸱吻
         chiwenName = dataset.chiwen_source
-        chiwenName = '鸱吻'
+        # chiwenName = '鸱吻'
         if chiwenName != '' :
             chiwenObj = bpy.data.objects.get('鸱吻')
             chiwenCopyObj = chinarchCopy(chiwenObj,"正脊鸱吻",(hill_width/2-rafter_d*2,0,zhengji_z),root_obj)
@@ -1944,7 +1999,8 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
 
         ###############################
         # 12、定位山花板
-        shanhuabanName = '山花板'
+        # shanhuabanName = '山花板'
+        shanhuabanName = ''
         if shanhuabanName != '' :
             shanhuabanObj = bpy.data.objects.get(shanhuabanName)
             shanhuabanCopyObj = chinarchCopy(shanhuabanObj,"正脊山花",(hill_width/2-rafter_d*4,0,trans_height-0.1),root_obj)
@@ -1952,7 +2008,8 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
         
         ###############################
         # 13、定位墙体
-        wall_source = '墙体.001'
+        # wall_source = '墙体.001'
+        wall_source = ''
         if wall_source != '' :
             # 1、创建china_arch collection集合
             # 所有对象建立在china_arch目录下，以免误删用户自建的模型
@@ -2007,11 +2064,6 @@ class CHINARCH_OT_build_roof(AddObjectHelper, bpy.types.Operator):
 
             # finish
             hideObj(wallObj)
-
-
-
-
-
 
         ########################
         # 完成

@@ -42,47 +42,47 @@ class CHINARCH_scene_data(bpy.types.PropertyGroup):
         )
     x_1 : bpy.props.FloatProperty(
         name="明间宽度",
-        default=3, min=0, max=5,
+        default=3, min=0, 
         update=update_piller
     )
     x_2 : bpy.props.FloatProperty(
         name="次间宽度",
-        default=3, min=0, max=5,
+        default=3, min=0, 
         update=update_piller
     )
     x_3 : bpy.props.FloatProperty(
         name="梢间宽度",
-        default=3, min=0, max=5,
+        default=3, min=0, 
         update=update_piller
     )
     x_4 : bpy.props.FloatProperty(
         name="尽间宽度",
-        default=3, min=0, max=5,
+        default=3, min=0, 
         update=update_piller
     )
     y_rooms : bpy.props.IntProperty(
             name="进深间数",
-            default=3, min=1, max=5,
+            default=3, min=1, 
             update=update_piller
         )
     y_1 : bpy.props.FloatProperty(
         name="明间深度",
-        default=3, min=0, max=5,
+        default=3, min=0, 
         update=update_piller
     )
     y_2 : bpy.props.FloatProperty(
         name="次间深度",
-        default=3, min=0, max=5,
+        default=3, min=0, 
         update=update_piller
     )
     y_3 : bpy.props.FloatProperty(
         name="梢间深度",
-        default=3, min=0, max=5,
+        default=3, min=0, 
         update=update_piller
     )
     z_base : bpy.props.FloatProperty(
             name="台基高度",
-            default=1, min=0.0, max=3.0,
+            default=1, min=0.0, max=20.0,
             update=update_piller
         )
     base_source : bpy.props.StringProperty(
@@ -196,14 +196,24 @@ class CHINARCH_scene_data(bpy.types.PropertyGroup):
             default=0.72, 
             update=update_roof
     )
+    hill_extend : bpy.props.FloatProperty(
+            name="两厦出际",
+            default=1.5, 
+            update=update_roof
+    )
     qiqiao: bpy.props.IntProperty(
             name="起翘(椽径倍数)",
             default=4, 
             update=update_roof
     )
     chong: bpy.props.IntProperty(
-            name="生出(椽径倍数)",
+            name="出冲(椽径倍数)",
             default=3, 
+            update=update_roof
+    )
+    shengqi: bpy.props.IntProperty(
+            name="生起(椽径倍数)",
+            default=1, 
             update=update_roof
     )
     tile_source : bpy.props.StringProperty(
@@ -231,3 +241,4 @@ class CHINARCH_scene_data(bpy.types.PropertyGroup):
             default="", 
             update=update_roof
     )
+    

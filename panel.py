@@ -121,6 +121,7 @@ class CHINAARCH_PT_panel_roof(bpy.types.Panel):
         col.prop(dataset,"rafter_count_select")   # 椽架数量
         #col.prop(dataset,"roof_base")   # 檐槫高
         col.prop(dataset,"roof_height") # 举高
+        col.prop(dataset,"hill_extend") # 两厦出际
         #col.prop(dataset,"roof_extend") # 斗栱出跳
         col.prop(dataset,"eave_extend") # 檐椽出跳
         col.prop(dataset,"feizi_extend") # 飞子出跳
@@ -139,8 +140,10 @@ class CHINAARCH_PT_panel_roof(bpy.types.Panel):
         row = box.row()
         row.prop_search(dataset,"CornerBeam_source",bpy.data,"objects")   #角梁对象
         col = box.column(align=True)
+        col.prop(dataset,"shengqi") # 生起
         col.prop(dataset,"chong") # 生出
         col.prop(dataset,"qiqiao") # 起翘
+        
         
         # 瓦片对象
         row = layout.row()
