@@ -3,7 +3,7 @@
 # 定义插件面板
 
 import bpy
-import data
+from . import data
 
 # 地盘设置面板
 class CHINAARCH_PT_panel_base(bpy.types.Panel):
